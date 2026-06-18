@@ -1,0 +1,11 @@
+{
+  "fallbackLng": "en",
+  "languages": [
+    {
+      "code": "en",
+      "label": "English",
+      "detect": ["en", "en-US", "en-GB"],
+      "dir": "ltr"
+    }
+  ]
+}
