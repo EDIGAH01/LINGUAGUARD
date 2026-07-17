@@ -1,1 +1,7 @@
-{}
+{
+  "common.appName": "LinguaGuard",
+  "home.hero.title": "Protect Every Conversation",
+  "home.hero.subtitle": "Real-time content filtering across your social, messaging & AI platforms",
+  "notFound.title": "Oops! Page not found",
+  "notFound.actions.backHome": "Return to Home"
+}

@@ -22,8 +22,10 @@ import {
   User,
   Eye,
   EyeOff,
+  Lock,
 } from "lucide-react";
-import { InstagramIcon, TwitterIcon, FacebookIcon, YoutubeIcon } from "@/components/icons/social-icons";
+import { Link } from "react-router-dom";
+import { InstagramIcon, TwitterIcon, FacebookIcon, YoutubeIcon, WhatsAppIcon } from "@/components/icons/social-icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,13 +50,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  platforms as initialPlatforms,
   type Platform,
   type ConnectedAccount,
   type ConnectionStatus,
   type PlatformCategory,
   type AuthMethod,
 } from "@/lib/data";
+import { usePlatforms } from "@/lib/store";
+import { usePlan, formatLimit } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -62,6 +65,7 @@ const iconMap: Record<string, React.ElementType> = {
   Twitter: TwitterIcon,
   Facebook: FacebookIcon,
   Youtube: YoutubeIcon,
+  WhatsApp: WhatsAppIcon,
   MessageCircle,
   Send,
   Bot,
@@ -138,7 +142,8 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
       const code = String(Math.floor(100000 + Math.random() * 900000));
       setExpectedVerificationCode(code);
       setVerificationSent(true);
-      setSmsStatus(`SMS code sent to ${fieldValue}.`);
+      // No real SMS backend exists — surface the code so the demo flow can be completed.
+      setSmsStatus(`SMS code sent to ${fieldValue}. (Demo code: ${code})`);
       setStep("verifying");
       await new Promise((r) => setTimeout(r, 1200));
       setStep("form");
@@ -373,27 +378,40 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function Connections() {
-  const [platforms, setPlatforms] = useState(initialPlatforms);
+  const [platforms, updatePlatforms] = usePlatforms();
   const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
   const [disconnectTarget, setDisconnectTarget] = useState<{ platformId: string; accountId: string } | null>(null);
+  const { limits } = usePlan();
+
+  const connectedCount = platforms.filter((p) => p.status === "connected").length;
+  const atPlatformLimit = connectedCount >= limits.maxPlatforms;
 
   const handleConnect = (platformId: string, account: ConnectedAccount) => {
-    setPlatforms((prev) =>
-      prev.map((p) =>
+    updatePlatforms((prev) => {
+      const target = prev.find((p) => p.id === platformId);
+      // Guard: connecting a NEW platform must respect the plan limit
+      const connectedNow = prev.filter((p) => p.status === "connected").length;
+      if (
+        target &&
+        target.status !== "connected" &&
+        connectedNow >= limits.maxPlatforms
+      ) {
+        return prev;
+      }
+      return prev.map((p) =>
         p.id === platformId
           ? {
               ...p,
               status: "connected" as ConnectionStatus,
               accounts: [...p.accounts, account],
-              filteredToday: p.filteredToday,
             }
           : p
-      )
-    );
+      );
+    });
   };
 
   const handleDisconnectAccount = (platformId: string, accountId: string) => {
-    setPlatforms((prev) =>
+    updatePlatforms((prev) =>
       prev.map((p) => {
         if (p.id !== platformId) return p;
         const updatedAccounts = p.accounts.filter((a) => a.id !== accountId);
@@ -420,13 +438,45 @@ export default function Connections() {
               Connect your accounts to enable content filtering
             </p>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
-            <Link2 className="w-3.5 h-3.5 text-primary" />
-            <span className="text-xs font-medium text-primary">
-              {platforms.reduce((acc, p) => acc + p.accounts.length, 0)} accounts linked
-            </span>
+          <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex items-center gap-2 px-3 py-1.5 rounded-full border",
+                atPlatformLimit
+                  ? "bg-warning/10 border-warning/20"
+                  : "bg-muted/40 border-border"
+              )}
+            >
+              <span
+                className={cn(
+                  "text-xs font-medium",
+                  atPlatformLimit ? "text-warning" : "text-muted-foreground"
+                )}
+              >
+                {connectedCount}/{formatLimit(limits.maxPlatforms)} platforms · {limits.label}
+              </span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20">
+              <Link2 className="w-3.5 h-3.5 text-primary" />
+              <span className="text-xs font-medium text-primary">
+                {platforms.reduce((acc, p) => acc + p.accounts.length, 0)} accounts linked
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* Plan limit notice */}
+        {atPlatformLimit && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
+            <p className="text-xs text-foreground">
+              You've reached the {formatLimit(limits.maxPlatforms)}-platform limit of your {limits.label}.
+              Upgrade to connect more platforms.
+            </p>
+            <Button size="sm" className="h-7 text-xs flex-shrink-0" asChild>
+              <Link to="/settings">Upgrade Plan</Link>
+            </Button>
+          </div>
+        )}
 
         {/* Platform Categories */}
         {categories.map((category) => {
@@ -518,10 +568,22 @@ export default function Connections() {
                         )}
 
                         {/* Action Button */}
-                        {platform.status === "pending" ? (
+                        {platform.category === "ai" && !limits.aiAgents ? (
+                          <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" asChild>
+                            <Link to="/settings">
+                              <Lock className="w-3 h-3" />
+                              Upgrade to Pro for AI Agents
+                            </Link>
+                          </Button>
+                        ) : platform.status === "pending" ? (
                           <Button variant="outline" size="sm" className="w-full h-8 text-xs" disabled>
                             <Clock className="w-3 h-3 mr-1.5" />
                             Approval Pending
+                          </Button>
+                        ) : !isConnected && atPlatformLimit ? (
+                          <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" disabled>
+                            <Lock className="w-3 h-3" />
+                            Platform Limit Reached
                           </Button>
                         ) : (
                           <Button

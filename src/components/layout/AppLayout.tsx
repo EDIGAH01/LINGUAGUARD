@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Menu } from "lucide-react";
 
 interface AppLayoutProps {
@@ -29,6 +30,8 @@ export function AppLayout({ children }: AppLayoutProps) {
             </SheetContent>
           </Sheet>
           <span className="text-sm font-bold text-foreground">LinguaGuard</span>
+          <div className="flex-1" />
+          <ThemeToggle />
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>

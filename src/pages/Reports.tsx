@@ -1,6 +1,8 @@
 import { AppLayout } from "@/components/layout/AppLayout";
-import { BarChart3, TrendingUp, ShieldX, AlertTriangle, Activity } from "lucide-react";
+import { BarChart3, TrendingUp, ShieldX, AlertTriangle, Activity, Lock } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
   BarChart,
   Bar,
@@ -14,14 +16,10 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { dailyStats, categoryBreakdown, platforms } from "@/lib/data";
+import { dailyStats, categoryBreakdown } from "@/lib/data";
+import { usePlatforms } from "@/lib/store";
+import { usePlan } from "@/lib/plan";
 import { cn } from "@/lib/utils";
-
-const platformStats = platforms
-  .filter((p) => p.filteredToday > 0)
-  .sort((a, b) => b.filteredToday - a.filteredToday);
-
-const totalToday = platformStats.reduce((acc, p) => acc + p.filteredToday, 0);
 
 const weeklyTotals = dailyStats.reduce(
   (acc, d) => ({
@@ -33,6 +31,14 @@ const weeklyTotals = dailyStats.reduce(
 );
 
 export default function Reports() {
+  const { limits } = usePlan();
+  const [platforms] = usePlatforms();
+
+  const platformStats = platforms
+    .filter((p) => p.status === "connected" && p.filteredToday > 0)
+    .sort((a, b) => b.filteredToday - a.filteredToday);
+  const totalToday = platformStats.reduce((acc, p) => acc + p.filteredToday, 0);
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6 animate-fade-in-up">
@@ -126,6 +132,27 @@ export default function Reports() {
           </CardContent>
         </Card>
 
+        {/* Advanced analytics — Pro & Enterprise only */}
+        {!limits.advancedReports ? (
+        <Card className="border-border border-dashed shadow-brand-sm">
+          <CardContent className="p-8 flex flex-col items-center gap-3 text-center">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <Lock className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-foreground">Advanced Reports</h3>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                Category breakdowns, per-platform analytics, and weekly insights are available on
+                Pro and Enterprise plans. Your {limits.label} includes basic reports only.
+              </p>
+            </div>
+            <Button size="sm" className="mt-1" asChild>
+              <Link to="/settings">Upgrade Plan</Link>
+            </Button>
+          </CardContent>
+        </Card>
+        ) : (
+        <>
         {/* Category Breakdown + Platform Table */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {/* Pie Chart */}
@@ -178,6 +205,11 @@ export default function Reports() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              {platformStats.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">
+                  No filtering activity yet — connect platforms to see per-platform stats.
+                </p>
+              )}
               {platformStats.map((p) => {
                 const pct = Math.round((p.filteredToday / totalToday) * 100);
                 return (
@@ -217,6 +249,8 @@ export default function Reports() {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
     </AppLayout>
   );

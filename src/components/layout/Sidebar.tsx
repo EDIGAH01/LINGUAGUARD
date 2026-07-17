@@ -14,7 +14,9 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePlan } from "@/lib/plan";
 import { Badge } from "@/components/ui/badge";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
@@ -33,7 +35,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
   const [userName, setUserName] = useState("Alex Morgan");
-  const [planName, setPlanName] = useState("Pro Plan");
+  const { limits } = usePlan();
 
   useEffect(() => {
     const applyStored = () => {
@@ -43,13 +45,6 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         const parsed = JSON.parse(stored);
         const p = parsed.profile || parsed;
         if (p && p.name) setUserName(p.name);
-        const cp = parsed.currentPlan || (parsed.currentPlan === undefined ? null : parsed.currentPlan);
-        const plan = cp || (parsed.currentPlan ? parsed.currentPlan : null) || null;
-        const planKey = parsed.currentPlan || parsed.currentPlan === undefined ? parsed.currentPlan : parsed.currentPlan;
-        const current = parsed.currentPlan || parsed.currentPlan === undefined ? parsed.currentPlan : parsed.currentPlan;
-        // normalize plan display
-        const disp = parsed.currentPlan ? (parsed.currentPlan === "pro" ? "Pro Plan" : parsed.currentPlan === "free" ? "Free Plan" : "Enterprise Plan") : planName;
-        if (disp) setPlanName(disp);
       } catch (e) {
         // ignore parse errors
       }
@@ -63,9 +58,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
     const onCustom = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) {
-        if (detail.profile && detail.profile.name) setUserName(detail.profile.name);
-        if (detail.currentPlan) setPlanName(detail.currentPlan === "pro" ? "Pro Plan" : detail.currentPlan === "free" ? "Free Plan" : "Enterprise Plan");
+      if (detail && detail.profile && detail.profile.name) {
+        setUserName(detail.profile.name);
       } else {
         applyStored();
       }
@@ -159,13 +153,22 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           {!collapsed && (
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-sidebar-foreground truncate">{userName}</p>
-              <p className="text-[10px] text-sidebar-foreground/50">{planName}</p>
+              <p className="text-[10px] text-sidebar-foreground/50">{limits.label}</p>
             </div>
           )}
           {!collapsed && (
-            <Bell className="w-3.5 h-3.5 text-sidebar-foreground/50 flex-shrink-0 cursor-pointer hover:text-sidebar-primary transition-colors" />
+            <NavLink to="/activity" aria-label="View activity log">
+              <Bell className="w-3.5 h-3.5 text-sidebar-foreground/50 flex-shrink-0 cursor-pointer hover:text-sidebar-primary transition-colors" />
+            </NavLink>
           )}
         </div>
+
+        {!collapsed && (
+          <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-sidebar-accent/90">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-sidebar-foreground/80">Theme</span>
+            <ThemeToggle />
+          </div>
+        )}
 
         {/* Collapse toggle */}
         <button

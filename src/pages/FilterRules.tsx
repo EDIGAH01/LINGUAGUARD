@@ -13,7 +13,9 @@ import {
   Pencil,
   Trash2,
   Hash,
+  Lock,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -36,13 +38,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  filterRules as initialRules,
   type FilterRule,
   type FilterCategory,
   type FilterSeverity,
   getCategoryLabel,
   getSeverityLabel,
 } from "@/lib/data";
+import { useRules } from "@/lib/store";
+import { usePlan, formatLimit } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 const categoryIcons: Record<FilterCategory, React.ElementType> = {
@@ -70,13 +73,16 @@ const severityColors: Record<FilterSeverity, string> = {
 };
 
 export default function FilterRules() {
-  const [rules, setRules] = useState<FilterRule[]>(initialRules);
+  const [rules, updateRules] = useRules();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<FilterRule | null>(null);
   const [form, setForm] = useState({ name: "", category: "custom" as FilterCategory, severity: "medium" as FilterSeverity, description: "", keywords: "" });
+  const { limits } = usePlan();
+
+  const atRuleLimit = rules.length >= limits.maxRules;
 
   const handleToggle = (id: string) => {
-    setRules((prev) =>
+    updateRules((prev) =>
       prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
     );
   };
@@ -94,19 +100,20 @@ export default function FilterRules() {
   };
 
   const handleNew = () => {
+    if (atRuleLimit) return;
     setEditingRule(null);
     setForm({ name: "", category: "custom", severity: "medium", description: "", keywords: "" });
     setDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
-    setRules((prev) => prev.filter((r) => r.id !== id));
+    updateRules((prev) => prev.filter((r) => r.id !== id));
   };
 
   const handleSave = () => {
     if (!form.name) return;
     if (editingRule) {
-      setRules((prev) =>
+      updateRules((prev) =>
         prev.map((r) =>
           r.id === editingRule.id
             ? { ...r, ...form, keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean) }
@@ -123,7 +130,7 @@ export default function FilterRules() {
         platforms: [],
         createdAt: new Date().toISOString().split("T")[0],
       };
-      setRules((prev) => [...prev, newRule]);
+      updateRules((prev) => [...prev, newRule]);
     }
     setDialogOpen(false);
   };
@@ -142,11 +149,24 @@ export default function FilterRules() {
               Configure what content gets blocked or flagged
             </p>
           </div>
-          <Button size="sm" className="h-9 gap-2" onClick={handleNew}>
-            <Plus className="w-4 h-4" />
+          <Button size="sm" className="h-9 gap-2" onClick={handleNew} disabled={atRuleLimit}>
+            {atRuleLimit ? <Lock className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
             Add Rule
           </Button>
         </div>
+
+        {/* Plan limit notice */}
+        {atRuleLimit && (
+          <div className="flex items-center justify-between gap-3 p-3 rounded-xl bg-warning/10 border border-warning/20">
+            <p className="text-xs text-foreground">
+              Your {limits.label} allows {formatLimit(limits.maxRules)} filter rules and you have {rules.length}.
+              Upgrade for unlimited rules.
+            </p>
+            <Button size="sm" className="h-7 text-xs flex-shrink-0" asChild>
+              <Link to="/settings">Upgrade Plan</Link>
+            </Button>
+          </div>
+        )}
 
         {/* Stats bar */}
         <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border">

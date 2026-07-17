@@ -13,7 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { activityEvents, platforms, totalStats, type ActivityStatus } from "@/lib/data";
+import { activityEvents, totalStats, type ActivityStatus } from "@/lib/data";
+import { usePlatforms, useRules } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
@@ -23,52 +24,55 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
   allowed: { label: "Allowed", icon: CheckCircle2, classes: "status-allowed border" },
 };
 
-const statCards = [
-  {
-    title: "Total Filtered",
-    value: "1,687",
-    change: "+12% today",
-    icon: ShieldCheck,
-    gradient: "from-primary/10 to-primary/5",
-    iconBg: "bg-primary/10",
-    iconColor: "text-primary",
-    trend: "up",
-  },
-  {
-    title: "Content Blocked",
-    value: "642",
-    change: "+8% today",
-    icon: ShieldX,
-    gradient: "from-danger/10 to-danger/5",
-    iconBg: "bg-danger/10",
-    iconColor: "text-danger",
-    trend: "up",
-  },
-  {
-    title: "Items Flagged",
-    value: "318",
-    change: "+5% today",
-    icon: AlertTriangle,
-    gradient: "from-warning/10 to-warning/5",
-    iconBg: "bg-warning/10",
-    iconColor: "text-warning",
-    trend: "up",
-  },
-  {
-    title: "Platforms Active",
-    value: String(totalStats.connectedPlatforms),
-    change: `of ${platforms.length} connected`,
-    icon: Link2,
-    gradient: "from-success/10 to-success/5",
-    iconBg: "bg-success/10",
-    iconColor: "text-success",
-    trend: "neutral",
-  },
-];
-
 export default function Dashboard() {
+  const [platforms] = usePlatforms();
+  const [rules] = useRules();
   const recentEvents = activityEvents.slice(0, 6);
   const connectedPlatforms = platforms.filter((p) => p.status === "connected");
+  const activeRules = rules.filter((r) => r.enabled).length;
+
+  const statCards = [
+    {
+      title: "Total Filtered",
+      value: totalStats.totalFiltered.toLocaleString(),
+      change: "+12% today",
+      icon: ShieldCheck,
+      gradient: "from-primary/10 to-primary/5",
+      iconBg: "bg-primary/10",
+      iconColor: "text-primary",
+      trend: "up",
+    },
+    {
+      title: "Content Blocked",
+      value: totalStats.blocked.toLocaleString(),
+      change: "+8% today",
+      icon: ShieldX,
+      gradient: "from-danger/10 to-danger/5",
+      iconBg: "bg-danger/10",
+      iconColor: "text-danger",
+      trend: "up",
+    },
+    {
+      title: "Items Flagged",
+      value: totalStats.flagged.toLocaleString(),
+      change: "+5% today",
+      icon: AlertTriangle,
+      gradient: "from-warning/10 to-warning/5",
+      iconBg: "bg-warning/10",
+      iconColor: "text-warning",
+      trend: "up",
+    },
+    {
+      title: "Platforms Active",
+      value: String(connectedPlatforms.length),
+      change: `of ${platforms.length} connected`,
+      icon: Link2,
+      gradient: "from-success/10 to-success/5",
+      iconBg: "bg-success/10",
+      iconColor: "text-success",
+      trend: "neutral",
+    },
+  ];
 
   return (
     <AppLayout>
@@ -145,14 +149,14 @@ export default function Dashboard() {
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Active Rules</span>
-                  <span className="font-semibold text-foreground">{totalStats.activeRules}/7</span>
+                  <span className="font-semibold text-foreground">{activeRules}/{rules.length}</span>
                 </div>
-                <Progress value={(totalStats.activeRules / 7) * 100} className="h-1.5" />
+                <Progress value={rules.length > 0 ? (activeRules / rules.length) * 100 : 0} className="h-1.5" />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Platforms Connected</span>
-                  <span className="font-semibold text-foreground">{totalStats.connectedPlatforms}/10</span>
+                  <span className="font-semibold text-foreground">{connectedPlatforms.length}/{platforms.length}</span>
                 </div>
-                <Progress value={(totalStats.connectedPlatforms / 10) * 100} className="h-1.5" />
+                <Progress value={(connectedPlatforms.length / platforms.length) * 100} className="h-1.5" />
               </div>
             </CardContent>
           </Card>

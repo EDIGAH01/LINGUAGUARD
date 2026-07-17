@@ -1,5 +1,5 @@
 import * as React from "react";
-import { IconProps } from "lucide-react";
+import type { LucideProps } from "lucide-react";
 
 const commonProps = {
   fill: "none",
@@ -7,9 +7,9 @@ const commonProps = {
   strokeWidth: 2,
   strokeLinecap: "round",
   strokeLinejoin: "round",
-};
+} as const;
 
-export const InstagramIcon = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => (
+export const InstagramIcon = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" {...commonProps} {...props}>
     <rect x="3" y="3" width="18" height="18" rx="5" ry="5" />
     <circle cx="12" cy="12" r="3.5" />
@@ -18,14 +18,14 @@ export const InstagramIcon = React.forwardRef<SVGSVGElement, IconProps>((props, 
 ));
 InstagramIcon.displayName = "InstagramIcon";
 
-export const TwitterIcon = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => (
+export const TwitterIcon = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" {...commonProps} {...props}>
     <path d="M22 5.8a8.3 8.3 0 01-2.4.7 4.2 4.2 0 001.8-2.4 8.4 8.4 0 01-2.7 1 4.2 4.2 0 00-7.2 3.8A11.9 11.9 0 013 5.4a4.2 4.2 0 001.3 5.6 4.2 4.2 0 01-1.9-.5v.1a4.2 4.2 0 003.3 4.1 4.2 4.2 0 01-1.9.1 4.2 4.2 0 003.9 2.9A8.4 8.4 0 012 19.4a11.8 11.8 0 006.4 1.9c7.7 0 11.9-6.4 11.9-12v-.5A8.6 8.6 0 0022 5.8z" />
   </svg>
 ));
 TwitterIcon.displayName = "TwitterIcon";
 
-export const FacebookIcon = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => (
+export const FacebookIcon = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" {...commonProps} {...props}>
     <rect x="2" y="2" width="20" height="20" rx="4" ry="4" />
     <path d="M14.5 8H12a1 1 0 00-1 1v2H9v2.5h2v6H14v-6h2l.5-2.5H14V9.5c0-.4.1-.5.5-.5h1.5V8z" />
@@ -33,10 +33,19 @@ export const FacebookIcon = React.forwardRef<SVGSVGElement, IconProps>((props, r
 ));
 FacebookIcon.displayName = "FacebookIcon";
 
-export const YoutubeIcon = React.forwardRef<SVGSVGElement, IconProps>((props, ref) => (
+export const YoutubeIcon = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
   <svg ref={ref} viewBox="0 0 24 24" {...commonProps} {...props}>
     <rect x="3" y="6" width="18" height="12" rx="4" ry="4" />
     <polygon fill="currentColor" stroke="none" points="10 8.5 16 12 10 15.5" />
   </svg>
 ));
 YoutubeIcon.displayName = "YoutubeIcon";
+
+export const WhatsAppIcon = React.forwardRef<SVGSVGElement, LucideProps>((props, ref) => (
+  <svg ref={ref} viewBox="0 0 24 24" {...commonProps} {...props}>
+    <path d="M17.4 2h.2c1.1 0 2.1.9 2.1 2v16c0 1.1-.9 2-2 2H6c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h11.4z" />
+    <path d="M12 14a2 2 0 100-4 2 2 0 000 4z" stroke="none" fill="currentColor" />
+    <path d="M8 7h8M8 11h8M8 15h5" />
+  </svg>
+));
+WhatsAppIcon.displayName = "WhatsAppIcon";

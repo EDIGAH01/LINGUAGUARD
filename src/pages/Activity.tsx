@@ -24,6 +24,7 @@ import {
   type ActivityStatus,
   getCategoryLabel,
 } from "@/lib/data";
+import { usePlan } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementType; classes: string; dot: string }> = {
@@ -49,9 +50,21 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
 
 const ITEMS_PER_PAGE = 8;
 
+// Parses relative timestamps like "2 min ago" / "1 hr ago" into minutes for sorting
+const timestampToMinutes = (t: string): number => {
+  const m = t.match(/(\d+)\s*(min|hr)/);
+  if (!m) return 0;
+  const n = parseInt(m[1], 10);
+  return m[2] === "hr" ? n * 60 : n;
+};
+
+const severityRank = { high: 0, medium: 1, low: 2 } as const;
+
 export default function Activity() {
+  const { limits } = usePlan();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "severity">("newest");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -61,15 +74,24 @@ export default function Activity() {
     id: `${e.id}-${i}`,
   }));
 
-  const filtered = allEvents.filter((e) => {
-    const matchStatus = statusFilter === "all" || e.status === statusFilter;
-    const matchSearch =
-      !search ||
-      e.content.toLowerCase().includes(search.toLowerCase()) ||
-      e.platformName.toLowerCase().includes(search.toLowerCase()) ||
-      e.ruleMatched.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const filtered = allEvents
+    .filter((e) => {
+      const matchStatus = statusFilter === "all" || e.status === statusFilter;
+      const matchSearch =
+        !search ||
+        e.content.toLowerCase().includes(search.toLowerCase()) ||
+        e.platformName.toLowerCase().includes(search.toLowerCase()) ||
+        e.ruleMatched.toLowerCase().includes(search.toLowerCase());
+      return matchStatus && matchSearch;
+    })
+    .sort((a, b) => {
+      if (sortBy === "oldest") return timestampToMinutes(b.timestamp) - timestampToMinutes(a.timestamp);
+      if (sortBy === "severity") {
+        const diff = severityRank[a.severity] - severityRank[b.severity];
+        return diff !== 0 ? diff : timestampToMinutes(a.timestamp) - timestampToMinutes(b.timestamp);
+      }
+      return timestampToMinutes(a.timestamp) - timestampToMinutes(b.timestamp);
+    });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -92,9 +114,16 @@ export default function Activity() {
               Real-time content filtering events across all platforms
             </p>
           </div>
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-danger/10 border border-danger/20">
-            <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
-            <span className="text-xs font-medium text-danger">Live</span>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/40 border border-border">
+              <span className="text-xs font-medium text-muted-foreground">
+                {limits.retentionDays >= 365 ? "1-year" : `${limits.retentionDays}-day`} log retention · {limits.label}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-danger/10 border border-danger/20">
+              <span className="w-2 h-2 rounded-full bg-danger animate-pulse" />
+              <span className="text-xs font-medium text-danger">Live</span>
+            </div>
           </div>
         </div>
 
@@ -139,7 +168,7 @@ export default function Activity() {
               className="pl-9 h-9 text-sm"
             />
           </div>
-          <Select defaultValue="newest">
+          <Select value={sortBy} onValueChange={(v) => { setSortBy(v as typeof sortBy); setPage(1); }}>
             <SelectTrigger className="h-9 w-36 text-xs">
               <Filter className="w-3 h-3 mr-1.5 text-muted-foreground" />
               <SelectValue />
