@@ -1,10 +1,4 @@
-node_modules
 .vscode/
-.venv/
-dist/
-build-output.txt
-install-output.txt
 *.log
 .env
 .env.*
-
