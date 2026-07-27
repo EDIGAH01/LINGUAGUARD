@@ -58,6 +58,7 @@ import {
 } from "@/lib/data";
 import { usePlatforms } from "@/lib/store";
 import { usePlan, formatLimit } from "@/lib/plan";
+import { authFetch } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, React.ElementType> = {
@@ -115,8 +116,15 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
   const [verifyCode, setVerifyCode] = useState("");
   const [showSecret, setShowSecret] = useState(false);
   const [verificationSent, setVerificationSent] = useState(false);
-  const [expectedVerificationCode, setExpectedVerificationCode] = useState<string | null>(null);
   const [smsStatus, setSmsStatus] = useState("");
+
+  // Telegram is wired to a real backend (a real bot, real verification
+  // message) instead of the simulated flow the other platforms use.
+  const [telegramLink, setTelegramLink] = useState<string | null>(null);
+  const [telegramError, setTelegramError] = useState("");
+  const [telegramGroups, setTelegramGroups] = useState<{ chatId: number; groupTitle: string; connectedAt: number }[]>([]);
+  const [groupLink, setGroupLink] = useState<string | null>(null);
+  const [groupError, setGroupError] = useState("");
 
   useEffect(() => {
     if (!platform) {
@@ -126,10 +134,142 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
       setVerifyCode("");
       setShowSecret(false);
       setVerificationSent(false);
-      setExpectedVerificationCode(null);
       setSmsStatus("");
+      setTelegramLink(null);
+      setTelegramError("");
+      setTelegramGroups([]);
+      setGroupLink(null);
+      setGroupError("");
+      setOauthUrl(null);
+      setOauthError("");
     }
   }, [platform]);
+
+  const isTelegram = platform?.id === "telegram";
+
+  // Real OAuth 2.0 + PKCE for the platforms that have it wired server-side —
+  // everything else still uses the simulated flow below until a developer
+  // app is registered for it.
+  const oauthProvider = platform?.id === "twitter" ? "x" : platform?.id === "tiktok" ? "tiktok" : null;
+  const [oauthUrl, setOauthUrl] = useState<string | null>(null);
+  const [oauthError, setOauthError] = useState("");
+
+  useEffect(() => {
+    if (!oauthProvider || !oauthUrl) return;
+    const interval = setInterval(async () => {
+      const res = await authFetch(`/api/oauth/${oauthProvider}/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.connected) {
+        clearInterval(interval);
+        setOauthUrl(null);
+        setDisplayName(data.displayName || data.username || `${platform?.name} account`);
+        setFieldValue(data.username ? `@${data.username}` : data.displayName || "");
+        setStep("success");
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oauthProvider, oauthUrl]);
+
+  const startRealOAuth = async () => {
+    if (!oauthProvider) return;
+    setOauthError("");
+    setStep("verifying");
+    try {
+      const res = await authFetch(`/api/oauth/${oauthProvider}/start`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start authorization");
+      setOauthUrl(data.authUrl);
+      window.open(data.authUrl, "_blank", "noopener,noreferrer");
+      setStep("form");
+    } catch (err) {
+      setOauthError(err instanceof Error ? err.message : "We couldn't reach that service. Please try again.");
+      setStep("form");
+    }
+  };
+
+  useEffect(() => {
+    if (!isTelegram) return;
+    authFetch("/api/platforms/telegram/groups").then(async (res) => {
+      if (res.ok) setTelegramGroups((await res.json()).groups);
+    });
+  }, [isTelegram]);
+
+  useEffect(() => {
+    if (!isTelegram || !platform || !telegramLink) return;
+    const interval = setInterval(async () => {
+      const res = await authFetch("/api/platforms/telegram/status");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.connected) {
+        clearInterval(interval);
+        setDisplayName(data.telegramUsername || "Telegram user");
+        setFieldValue(`@${data.telegramUsername || "telegram_user"}`);
+        setStep("success");
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isTelegram, platform, telegramLink]);
+
+  // Polls until a NEW group shows up (by count growing) rather than a fixed
+  // "connected" flag — Telegram's ?startgroup= flow doesn't tell the client
+  // which group was picked, only that the bot's /start arrived somewhere.
+  useEffect(() => {
+    if (!isTelegram || !groupLink) return;
+    const startCount = telegramGroups.length;
+    const interval = setInterval(async () => {
+      const res = await authFetch("/api/platforms/telegram/groups");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.groups.length > startCount) {
+        clearInterval(interval);
+        const newGroup = data.groups[data.groups.length - 1];
+        setTelegramGroups(data.groups);
+        setGroupLink(null);
+        onConnect("telegram", {
+          id: `telegram-group-${newGroup.chatId}`,
+          handle: `Group: ${newGroup.groupTitle}`,
+          displayName: newGroup.groupTitle,
+          avatar: newGroup.groupTitle.slice(0, 2).toUpperCase(),
+          connectedAt: new Date(newGroup.connectedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          filteredToday: 0,
+          active: true,
+        });
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [isTelegram, groupLink]);
+
+  const startTelegramVerification = async () => {
+    setTelegramError("");
+    setStep("verifying");
+    try {
+      const res = await authFetch("/api/platforms/telegram/start", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start Telegram verification");
+      setTelegramLink(data.deepLink);
+      window.open(data.deepLink, "_blank", "noopener,noreferrer");
+      setStep("form");
+    } catch (err) {
+      setTelegramError(err instanceof Error ? err.message : "We couldn't reach that service. Please try again.");
+      setStep("form");
+    }
+  };
+
+  const startTelegramGroupVerification = async () => {
+    setGroupError("");
+    try {
+      const res = await authFetch("/api/platforms/telegram/group/start", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start group connection");
+      setGroupLink(data.deepLink);
+      window.open(data.deepLink, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setGroupError(err instanceof Error ? err.message : "We couldn't reach that service. Please try again.");
+    }
+  };
 
   if (!platform) return null;
 
@@ -139,13 +279,19 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
     if (!fieldValue) return;
 
     if (platform.authMethod === "phone" && !verificationSent) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      setExpectedVerificationCode(code);
-      setVerificationSent(true);
-      // No real SMS backend exists — surface the code so the demo flow can be completed.
-      setSmsStatus(`SMS code sent to ${fieldValue}. (Demo code: ${code})`);
       setStep("verifying");
-      await new Promise((r) => setTimeout(r, 1200));
+      try {
+        const res = await authFetch("/api/platforms/phone/start", {
+          method: "POST",
+          body: JSON.stringify({ platformId: platform.id, phone: fieldValue, platformName: platform.name }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to send verification code");
+        setVerificationSent(true);
+        setSmsStatus(data.message || `A verification code was sent to ${fieldValue}.`);
+      } catch (err) {
+        setSmsStatus(err instanceof Error ? err.message : "Failed to send verification code");
+      }
       setStep("form");
       return;
     }
@@ -157,17 +303,26 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
       }
 
       setStep("verifying");
-      await new Promise((r) => setTimeout(r, 1200));
-
-      if (verifyCode !== expectedVerificationCode) {
+      try {
+        const res = await authFetch("/api/platforms/phone/verify", {
+          method: "POST",
+          body: JSON.stringify({ platformId: platform.id, phone: fieldValue, code: verifyCode }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setStep("form");
+          setSmsStatus(data.error || "Incorrect code.");
+          return;
+        }
+      } catch {
         setStep("form");
-        setSmsStatus("Incorrect code. Please try again.");
+        setSmsStatus("Something went wrong. Please try again.");
         return;
       }
     }
 
     setStep("verifying");
-    await new Promise((r) => setTimeout(r, 1200));
+    await new Promise((r) => setTimeout(r, 800));
     setStep("success");
   };
 
@@ -182,7 +337,12 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
     const label = displayName || fieldValue || "My Account";
     const handle =
       platform.authMethod === "oauth"
-        ? `@${label.toLowerCase().replace(/\s+/g, "_")}`
+        // Real OAuth (X, TikTok) already put the provider's real @handle in
+        // fieldValue — only fall back to deriving a slug from the display
+        // name for the simulated flow, which never sets fieldValue at all.
+        ? fieldValue.startsWith("@")
+          ? fieldValue
+          : `@${label.toLowerCase().replace(/\s+/g, "_")}`
         : platform.authMethod === "apikey"
         ? `${fieldValue.slice(0, 8)}••••••••••••`
         : fieldValue;
@@ -247,11 +407,45 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
               {/* Auth method badge */}
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/40 border border-border">
                 <AuthIcon className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                <span className="text-xs text-muted-foreground">{authMethodLabel[platform.authMethod]}</span>
+                <span className="text-xs text-muted-foreground">
+                  {isTelegram ? "Connect via Telegram bot" : authMethodLabel[platform.authMethod]}
+                </span>
               </div>
 
-              {/* OAuth flow */}
-              {platform.authMethod === "oauth" && (
+              {/* Real OAuth 2.0 + PKCE (X, TikTok) — an actual redirect to the
+                  provider's real login/consent page, not a simulated delay. */}
+              {oauthProvider && (
+                <>
+                  {oauthUrl ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Waiting for you to finish signing in with {platform.name}… this updates automatically.
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-primary">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Listening for authorization
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-8 text-xs" asChild>
+                        <a href={oauthUrl} target="_blank" rel="noopener noreferrer">
+                          Reopen {platform.name} login
+                        </a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button className="w-full h-9 gap-2 text-sm" onClick={startRealOAuth}>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Authorize with {platform.name}
+                    </Button>
+                  )}
+                  <p className="text-[11px] text-center text-muted-foreground">
+                    You'll be redirected to {platform.name} to grant access. LinguaGuard only reads content — it never posts on your behalf.
+                  </p>
+                  {oauthError && <p className="text-[11px] text-danger text-center">{oauthError}</p>}
+                </>
+              )}
+
+              {/* Simulated OAuth flow — for platforms without a registered developer app yet. */}
+              {platform.authMethod === "oauth" && !oauthProvider && (
                 <>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Display Name (optional)</Label>
@@ -272,8 +466,69 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
                 </>
               )}
 
-              {/* Phone flow */}
-              {platform.authMethod === "phone" && (
+              {/* Telegram: real bot-backed verification, not simulated */}
+              {isTelegram && (
+                <>
+                  {telegramLink ? (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        Waiting for you to tap <strong>Start</strong> in Telegram… this updates automatically.
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-primary">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Listening for verification
+                      </div>
+                      <Button variant="outline" size="sm" className="w-full h-8 text-xs" asChild>
+                        <a href={telegramLink} target="_blank" rel="noopener noreferrer">
+                          Reopen Telegram link
+                        </a>
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-muted-foreground">
+                      Tap the button below to open Telegram and message our bot. Once you hit "Start" there, this
+                      connects automatically — no code to copy.
+                    </p>
+                  )}
+                  {telegramError && <p className="text-[11px] text-danger">{telegramError}</p>}
+
+                  <div className="pt-1 border-t border-border space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+                      Moderate a group instead
+                    </p>
+                    {telegramGroups.length > 0 && (
+                      <div className="space-y-1">
+                        {telegramGroups.map((g) => (
+                          <div key={g.chatId} className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-muted/40 text-[11px] text-foreground">
+                            <ShieldCheck className="w-3 h-3 text-success flex-shrink-0" />
+                            {g.groupTitle}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {groupLink ? (
+                      <div className="flex items-center gap-2 text-xs text-primary">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        Waiting for a group to be picked…
+                      </div>
+                    ) : (
+                      <Button variant="outline" size="sm" className="w-full h-8 text-xs gap-1.5" onClick={startTelegramGroupVerification}>
+                        <Plus className="w-3.5 h-3.5" />
+                        Connect a Telegram Group
+                      </Button>
+                    )}
+                    {groupError && <p className="text-[11px] text-danger">{groupError}</p>}
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      After adding the bot, it only sees every message if its privacy mode is disabled
+                      (message <span className="font-mono">@BotFather</span> → <span className="font-mono">/setprivacy</span> → Disable)
+                      or it's made a group admin — otherwise Telegram only forwards it commands, by Telegram's own design.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Phone flow (non-Telegram) */}
+              {platform.authMethod === "phone" && !isTelegram && (
                 <>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-medium">Phone Number</Label>
@@ -349,7 +604,14 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
               )}
             </div>
 
-            {platform.authMethod !== "oauth" && (
+            {isTelegram ? (
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
+                <Button size="sm" onClick={startTelegramVerification} disabled={!!telegramLink}>
+                  {telegramLink ? "Waiting…" : "Open Telegram"}
+                </Button>
+              </DialogFooter>
+            ) : platform.authMethod !== "oauth" ? (
               <DialogFooter>
                 <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
                 <Button
@@ -367,7 +629,7 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
                     : "Connect"}
                 </Button>
               </DialogFooter>
-            )}
+            ) : null}
           </>
         )}
       </DialogContent>
@@ -433,7 +695,7 @@ export default function Connections() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Connections</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Connections</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Connect your accounts to enable content filtering
             </p>
@@ -538,7 +800,7 @@ export default function Connections() {
                             {platform.accounts.map((account) => (
                               <div
                                 key={account.id}
-                                className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border border-border group"
+                                className="flex items-center gap-2 p-2 rounded-lg bg-muted/40 border border-border group transition-colors hover:bg-muted/60"
                               >
                                 {/* Avatar */}
                                 <div className={cn("w-6 h-6 rounded-full bg-gradient-to-br flex items-center justify-center flex-shrink-0 text-white text-[9px] font-bold", platform.color)}>

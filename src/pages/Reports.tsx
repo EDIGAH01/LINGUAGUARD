@@ -16,28 +16,48 @@ import {
   Cell,
   Legend,
 } from "recharts";
-import { dailyStats, categoryBreakdown } from "@/lib/data";
+import { getCategoryLabel, type FilterCategory } from "@/lib/data";
 import { usePlatforms } from "@/lib/store";
+import { useContentStats } from "@/lib/activity";
 import { usePlan } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
-const weeklyTotals = dailyStats.reduce(
-  (acc, d) => ({
-    blocked: acc.blocked + d.blocked,
-    flagged: acc.flagged + d.flagged,
-    allowed: acc.allowed + d.allowed,
-  }),
-  { blocked: 0, flagged: 0, allowed: 0 }
-);
+const CATEGORY_COLORS: Record<FilterCategory, string> = {
+  hate_speech: "hsl(280 80% 55%)",
+  harassment: "hsl(0 84% 60%)",
+  explicit: "hsl(330 80% 55%)",
+  spam: "hsl(38 92% 50%)",
+  misinformation: "hsl(210 90% 55%)",
+  custom: "hsl(142 76% 36%)",
+};
 
 export default function Reports() {
   const { limits } = usePlan();
   const [platforms] = usePlatforms();
+  const { stats } = useContentStats();
+
+  const weeklyTotals = (stats?.dailyStats ?? []).reduce(
+    (acc, d) => ({
+      blocked: acc.blocked + d.blocked,
+      flagged: acc.flagged + d.flagged,
+      allowed: acc.allowed + d.allowed,
+    }),
+    { blocked: 0, flagged: 0, allowed: 0 }
+  );
+
+  const categoryBreakdown = Object.entries(stats?.byCategory ?? {}).map(([category, value]) => ({
+    name: getCategoryLabel(category as FilterCategory),
+    value: value as number,
+    color: CATEGORY_COLORS[category as FilterCategory],
+  }));
 
   const platformStats = platforms
-    .filter((p) => p.status === "connected" && p.filteredToday > 0)
+    .filter((p) => p.status === "connected" && (stats?.byPlatform[p.id] ?? 0) > 0)
+    .map((p) => ({ ...p, filteredToday: stats?.byPlatform[p.id] ?? 0 }))
     .sort((a, b) => b.filteredToday - a.filteredToday);
   const totalToday = platformStats.reduce((acc, p) => acc + p.filteredToday, 0);
+
+  const topCategory = [...categoryBreakdown].sort((a, b) => b.value - a.value)[0];
 
   return (
     <AppLayout>
@@ -45,7 +65,7 @@ export default function Reports() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Reports</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Reports</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Analytics and insights on your content filtering
             </p>
@@ -63,10 +83,10 @@ export default function Reports() {
             { label: "Total Flagged", value: weeklyTotals.flagged, icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10" },
             { label: "Total Allowed", value: weeklyTotals.allowed, icon: Activity, color: "text-success", bg: "bg-success/10" },
           ].map((item) => (
-            <Card key={item.label} className="border-border shadow-brand-sm">
+            <Card key={item.label} className="border-border shadow-brand-sm transition-all duration-200 hover:shadow-brand-md hover:-translate-y-0.5">
               <CardContent className="p-4">
                 <div className="flex items-center gap-3">
-                  <div className={cn("p-2 rounded-lg", item.bg)}>
+                  <div className={cn("p-2 rounded-xl ring-4 ring-white/40 dark:ring-white/5", item.bg)}>
                     <item.icon className={cn("w-4 h-4", item.color)} />
                   </div>
                   <div>
@@ -89,7 +109,7 @@ export default function Reports() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={dailyStats} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={18} barGap={4}>
+              <BarChart data={stats?.dailyStats ?? []} margin={{ top: 4, right: 4, left: -20, bottom: 0 }} barSize={18} barGap={4}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="date"
@@ -163,37 +183,43 @@ export default function Reports() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={categoryBreakdown}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {categoryBreakdown.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: "hsl(var(--card))",
-                      border: "1px solid hsl(var(--border))",
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                      color: "hsl(var(--foreground))",
-                    }}
-                  />
-                  <Legend
-                    iconType="circle"
-                    iconSize={8}
-                    wrapperStyle={{ fontSize: "11px", color: "hsl(var(--muted-foreground))" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              {categoryBreakdown.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-[72px]">
+                  No violations yet this week — matches by category will appear here.
+                </p>
+              ) : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={categoryBreakdown}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={3}
+                      dataKey="value"
+                    >
+                      {categoryBreakdown.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: "hsl(var(--card))",
+                        border: "1px solid hsl(var(--border))",
+                        borderRadius: "8px",
+                        fontSize: "12px",
+                        color: "hsl(var(--foreground))",
+                      }}
+                    />
+                    <Legend
+                      iconType="circle"
+                      iconSize={8}
+                      wrapperStyle={{ fontSize: "11px", color: "hsl(var(--muted-foreground))" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </CardContent>
           </Card>
 
@@ -241,9 +267,9 @@ export default function Reports() {
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Weekly Insight</h3>
                 <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  Spam & Scam content (412 matches) is your most frequent filter trigger this week.
-                  Harassment violations increased 18% compared to last week — consider reviewing your
-                  Cyberbullying rule thresholds.
+                  {topCategory
+                    ? `${topCategory.name} (${topCategory.value.toLocaleString()} ${topCategory.value === 1 ? "match" : "matches"}) is your most frequent filter trigger this week. Review your rules on the Filter Rules page if this doesn't match what you expect.`
+                    : "No violations recorded yet — insights will appear here once your filter rules start matching content."}
                 </p>
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   User,
@@ -21,6 +21,15 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { enforcePlanLimits } from "@/lib/store";
+import { authFetch, useAuth, changePassword } from "@/lib/auth";
+import {
+  useSessions,
+  useApiKeys,
+  startTwoFactorSetup,
+  confirmTwoFactorSetup,
+  disableTwoFactor,
+  type TwoFactorSetup,
+} from "@/lib/security";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -53,61 +62,79 @@ const planFeatures = {
 
 type SecurityDialogType = "password" | "2fa" | "sessions" | "apikeys" | null;
 
-const initialSessions = [
-  { id: "s1", device: "Chrome · Windows 11", location: "Nairobi, KE", lastActive: "Active now", current: true },
-  { id: "s2", device: "Safari · iPhone 15", location: "Nairobi, KE", lastActive: "2 hr ago", current: false },
-  { id: "s3", device: "Edge · MacBook Pro", location: "Mombasa, KE", lastActive: "Jun 12, 2026", current: false },
-];
-
-const initialApiKeys = [
-  { id: "k1", label: "Production", key: "lg_live_••••••••••••4f2a", created: "Jun 8, 2026" },
-];
-
 export default function Settings() {
-  const [notifications, setNotifications] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem("linguaguard-notifications");
-      if (stored) {
-        const enabledMap = JSON.parse(stored) as Record<string, boolean>;
-        return notificationSettings.map((n) => ({ ...n, enabled: enabledMap[n.id] ?? n.enabled }));
-      }
-    } catch {
-      // corrupt storage — use defaults
-    }
-    return notificationSettings;
-  });
-  const [profile, setProfile] = useState({ name: "Alex Morgan", email: "alex@company.com", phone: "+1 (555) 0192" });
-    const [currentPlan, setCurrentPlan] = useState<"free" | "pro" | "enterprise">("pro");
+  const { user, setUser, refreshUser } = useAuth();
+  // Server-backed, not localStorage: the scan engine (which sends the real
+  // email/SMS alerts, including for Telegram messages that never touch this
+  // browser) reads the same stored preferences these toggles write.
+  const [notifications, setNotifications] = useState(notificationSettings);
+  useEffect(() => {
+    authFetch("/api/notifications/prefs").then(async (res) => {
+      if (!res.ok) return;
+      const { prefs } = (await res.json()) as { prefs: Record<string, boolean> };
+      setNotifications((prev) => prev.map((n) => ({ ...n, enabled: prefs[n.id] ?? n.enabled })));
+    });
+  }, []);
+  const [profile, setProfile] = useState({ name: "", email: "", phone: "" });
+  const currentPlan = user?.plan ?? "free";
   const [saved, setSaved] = useState(false);
   const [profileChanged, setProfileChanged] = useState(false);
   const [editing, setEditing] = useState(true);
 
+  useEffect(() => {
+    if (user) setProfile({ name: user.name, email: user.email, phone: user.phone });
+  }, [user]);
+
   // Security
   const [securityDialog, setSecurityDialog] = useState<SecurityDialogType>(null);
-  const [twoFAEnabled, setTwoFAEnabled] = useState<boolean>(() => {
-    try {
-      return JSON.parse(window.localStorage.getItem("linguaguard-security") || "{}").twoFA ?? true;
-    } catch {
-      return true;
-    }
-  });
+  const twoFAEnabled = user?.twoFactorEnabled ?? false;
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwError, setPwError] = useState("");
-  const [sessions, setSessions] = useState(initialSessions);
-  const [apiKeys, setApiKeys] = useState(initialApiKeys);
+  const [pwSaving, setPwSaving] = useState(false);
+  const sessions = useSessions();
+  const apiKeys = useApiKeys();
+  const [newKeyLabel, setNewKeyLabel] = useState("");
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+  const [creatingKey, setCreatingKey] = useState(false);
 
-  const toggleNotification = (id: string) => {
-    setNotifications((prev) => {
-      const next = prev.map((n) => (n.id === id ? { ...n, enabled: !n.enabled } : n));
-      window.localStorage.setItem(
-        "linguaguard-notifications",
-        JSON.stringify(Object.fromEntries(next.map((n) => [n.id, n.enabled])))
-      );
-      return next;
+  // 2FA enrollment flow
+  const [twoFASetup, setTwoFASetup] = useState<TwoFactorSetup | null>(null);
+  const [twoFACode, setTwoFACode] = useState("");
+  const [twoFABusy, setTwoFABusy] = useState(false);
+  const [twoFAError, setTwoFAError] = useState("");
+
+  useEffect(() => {
+    if (securityDialog === "sessions") sessions.refresh();
+    if (securityDialog === "apikeys") apiKeys.refresh();
+    if (securityDialog !== "2fa") {
+      setTwoFASetup(null);
+      setTwoFACode("");
+      setTwoFAError("");
+    }
+    if (securityDialog !== "apikeys") {
+      setRevealedKey(null);
+      setNewKeyLabel("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [securityDialog]);
+
+  const toggleNotification = async (id: string) => {
+    const current = notifications.find((n) => n.id === id);
+    if (!current) return;
+    const nextEnabled = !current.enabled;
+    // Optimistic flip, reverted if the server rejects the save.
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, enabled: nextEnabled } : n)));
+    const res = await authFetch("/api/notifications/prefs", {
+      method: "PATCH",
+      body: JSON.stringify({ [id]: nextEnabled }),
     });
+    if (!res.ok) {
+      setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, enabled: !nextEnabled } : n)));
+      toast.error("Failed to save notification preference");
+    }
   };
 
-  const handlePasswordSave = () => {
+  const handlePasswordSave = async () => {
     if (!pwForm.current) {
       setPwError("Enter your current password.");
       return;
@@ -120,40 +147,89 @@ export default function Settings() {
       setPwError("Passwords do not match.");
       return;
     }
-    setSecurityDialog(null);
-    setPwForm({ current: "", next: "", confirm: "" });
-    setPwError("");
-    toast.success("Password updated");
+    setPwSaving(true);
+    try {
+      await changePassword(pwForm.current, pwForm.next);
+      setSecurityDialog(null);
+      setPwForm({ current: "", next: "", confirm: "" });
+      setPwError("");
+      toast.success("Password updated. Your other signed-in devices have been signed out.");
+    } catch (err) {
+      setPwError(err instanceof Error ? err.message : "Failed to update password");
+    } finally {
+      setPwSaving(false);
+    }
   };
 
-  const handleToggle2FA = (enabled: boolean) => {
-    setTwoFAEnabled(enabled);
-    window.localStorage.setItem("linguaguard-security", JSON.stringify({ twoFA: enabled }));
-    toast.success(enabled ? "Two-factor authentication enabled" : "Two-factor authentication disabled");
+  const beginTwoFactorSetup = async () => {
+    setTwoFABusy(true);
+    setTwoFAError("");
+    try {
+      setTwoFASetup(await startTwoFactorSetup());
+    } catch (err) {
+      setTwoFAError(err instanceof Error ? err.message : "Failed to start setup");
+    } finally {
+      setTwoFABusy(false);
+    }
+  };
+
+  const confirmTwoFactor = async () => {
+    setTwoFABusy(true);
+    setTwoFAError("");
+    try {
+      await confirmTwoFactorSetup(twoFACode);
+      await refreshUser();
+      setTwoFASetup(null);
+      setTwoFACode("");
+      toast.success("Two-factor authentication enabled");
+    } catch (err) {
+      setTwoFAError(err instanceof Error ? err.message : "Incorrect code");
+    } finally {
+      setTwoFABusy(false);
+    }
+  };
+
+  const handleDisableTwoFactor = async () => {
+    setTwoFABusy(true);
+    setTwoFAError("");
+    try {
+      await disableTwoFactor(twoFACode);
+      await refreshUser();
+      setTwoFACode("");
+      toast.success("Two-factor authentication disabled");
+    } catch (err) {
+      setTwoFAError(err instanceof Error ? err.message : "Incorrect code");
+    } finally {
+      setTwoFABusy(false);
+    }
   };
 
   const signOutSession = (id: string) => {
-    setSessions((prev) => prev.filter((s) => s.id !== id));
-    toast.success("Session signed out");
+    sessions.revoke(id).then(
+      () => toast.success("Session signed out"),
+      (err) => toast.error(err instanceof Error ? err.message : "Failed to sign out session")
+    );
   };
 
-  const generateApiKey = () => {
-    const key = `lg_live_${Math.random().toString(36).slice(2, 10)}${Math.random().toString(36).slice(2, 10)}`;
-    setApiKeys((prev) => [
-      ...prev,
-      {
-        id: `k${Date.now()}`,
-        label: `Key ${prev.length + 1}`,
-        key,
-        created: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
-      },
-    ]);
-    toast.success("API key created", { description: "Copy it now — it won't be shown in full again." });
+  const generateApiKey = async () => {
+    setCreatingKey(true);
+    try {
+      const rawKey = await apiKeys.create(newKeyLabel.trim() || "Untitled key");
+      setRevealedKey(rawKey);
+      setNewKeyLabel("");
+      toast.success("API key created", { description: "Copy it now — it won't be shown in full again." });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create API key");
+    } finally {
+      setCreatingKey(false);
+    }
   };
 
   const revokeApiKey = (id: string) => {
-    setApiKeys((prev) => prev.filter((k) => k.id !== id));
-    toast.success("API key revoked");
+    apiKeys.revoke(id).then(
+      () => toast.success("API key revoked"),
+      (err) => toast.error(err instanceof Error ? err.message : "Failed to revoke API key")
+    );
   };
 
   const copyApiKey = (key: string) => {
@@ -163,50 +239,41 @@ export default function Settings() {
     );
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!profileChanged) return;
-    window.localStorage.setItem(
-      "linguaguard-profile",
-      JSON.stringify({ profile, currentPlan }),
-    );
-    setSaved(true);
-    setProfileChanged(false);
-    // keep inputs editable after saving
-    setEditing(true);
-    // notify other components (e.g. Sidebar) about profile change
     try {
-      window.dispatchEvent(new CustomEvent("linguaguard-profile-changed", { detail: { profile, currentPlan } }));
-    } catch (e) {
-      // ignore if CustomEvent isn't available
+      const res = await authFetch("/api/auth/me", {
+        method: "PATCH",
+        body: JSON.stringify({ name: profile.name, phone: profile.phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to save profile");
+
+      setUser(data.user);
+      setSaved(true);
+      setProfileChanged(false);
+      setEditing(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save profile");
     }
-    setTimeout(() => setSaved(false), 2000);
   };
 
-  useEffect(() => {
-    const storedProfile = window.localStorage.getItem("linguaguard-profile");
-    if (storedProfile) {
-      const parsed = JSON.parse(storedProfile);
-      if (parsed.profile) {
-        setProfile(parsed.profile);
-      } else {
-        setProfile(parsed);
-      }
-      if (parsed.currentPlan) {
-        setCurrentPlan(parsed.currentPlan);
-      }
-    }
-  }, []);
-
-  const changePlan = (plan: "free" | "pro" | "enterprise") => {
+  const changePlan = async (plan: "free" | "pro" | "enterprise") => {
     if (plan === currentPlan) return;
-    setCurrentPlan(plan);
-    window.localStorage.setItem(
-      "linguaguard-profile",
-      JSON.stringify({ profile, currentPlan: plan }),
-    );
+
     try {
-      window.dispatchEvent(new CustomEvent("linguaguard-profile-changed", { detail: { profile, currentPlan: plan } }));
-    } catch (e) {}
+      const res = await authFetch("/api/auth/me/plan", {
+        method: "PATCH",
+        body: JSON.stringify({ plan }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to switch plan");
+      setUser(data.user);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to switch plan");
+      return;
+    }
 
     // Bring connected platforms in line with the new plan's limits
     const removed = enforcePlanLimits(plan);
@@ -226,9 +293,17 @@ export default function Settings() {
   const [processingPayment, setProcessingPayment] = useState(false);
   const [mpesaPhone, setMpesaPhone] = useState("");
   const [mpesaMessage, setMpesaMessage] = useState("");
+  const [mpesaMessageIsError, setMpesaMessageIsError] = useState(false);
+  const pollAbortRef = useRef(false);
 
   const handleSubscriptionClick = (plan: "free" | "pro" | "enterprise") => {
     if (plan === currentPlan) return;
+    // Admins can change their own plan freely — the M-Pesa flow is only for
+    // paying customers upgrading themselves, not an access-control gate.
+    if (user?.role === "admin") {
+      changePlan(plan);
+      return;
+    }
     // show payment prompt if upgrading
     if (planPriority(plan) > planPriority(currentPlan)) {
       setSelectedPlan(plan);
@@ -239,29 +314,85 @@ export default function Settings() {
     changePlan(plan);
   };
 
+  const closeMpesaDialog = () => {
+    pollAbortRef.current = true;
+    setMpesaOpen(false);
+    setMpesaPhone("");
+    setMpesaMessage("");
+    setMpesaMessageIsError(false);
+    setProcessingPayment(false);
+  };
+
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  const showMpesaInfo = (msg: string) => {
+    setMpesaMessage(msg);
+    setMpesaMessageIsError(false);
+  };
+
+  const showMpesaError = (msg: string) => {
+    setMpesaMessage(msg);
+    setMpesaMessageIsError(true);
+  };
+
   const confirmMpesaPayment = async () => {
     if (!selectedPlan) return;
     // validate phone
     const valid = /^((\+2547\d{8})|(07\d{8}))$/.test(mpesaPhone);
     if (!valid) {
-      setMpesaMessage("Please enter a valid Kenyan phone number (eg. +2547XXXXXXXX or 07XXXXXXXX)");
+      showMpesaError("Please enter a valid Kenyan phone number (eg. +2547XXXXXXXX or 07XXXXXXXX)");
       return;
     }
+
     setProcessingPayment(true);
-    setMpesaMessage("Sending M-Pesa prompt...");
-    // simulate sending M-Pesa STK push (replace with real integration)
-    setTimeout(() => {
-      setMpesaMessage(`M-Pesa prompt sent to ${mpesaPhone}. Please confirm on your phone.`);
-      // simulate user completing payment and service confirming
-      setTimeout(() => {
-        setProcessingPayment(false);
-        setMpesaOpen(false);
-        changePlan(selectedPlan);
-        setSelectedPlan(null);
-        setMpesaPhone("");
-        setMpesaMessage("");
-      }, 2000);
-    }, 1200);
+    showMpesaInfo("Sending M-Pesa prompt...");
+    pollAbortRef.current = false;
+
+    try {
+      const stkRes = await authFetch("/api/mpesa/stkpush", {
+        method: "POST",
+        body: JSON.stringify({ phone: mpesaPhone, plan: selectedPlan }),
+      });
+      const stkData = await stkRes.json();
+      if (!stkRes.ok) throw new Error(stkData.error || "Failed to start M-Pesa payment");
+
+      showMpesaInfo(
+        stkData.customerMessage || `M-Pesa prompt sent to ${mpesaPhone}. Please confirm on your phone.`
+      );
+
+      const checkoutRequestId = stkData.checkoutRequestId;
+      const maxAttempts = 20; // ~60s at 3s intervals — matches the STK push's own timeout window
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        if (pollAbortRef.current) return;
+        await sleep(3000);
+        if (pollAbortRef.current) return;
+
+        const statusRes = await authFetch(`/api/mpesa/status/${checkoutRequestId}`);
+        const statusData = await statusRes.json();
+
+        if (statusData.status === "success") {
+          setProcessingPayment(false);
+          setMpesaOpen(false);
+          await changePlan(selectedPlan);
+          setSelectedPlan(null);
+          setMpesaPhone("");
+          setMpesaMessage("");
+          return;
+        }
+        if (statusData.status === "failed") {
+          setProcessingPayment(false);
+          showMpesaError(statusData.detail || "Payment was not completed. Please try again.");
+          return;
+        }
+        // status === "pending" — keep polling
+      }
+
+      setProcessingPayment(false);
+      showMpesaError("Timed out waiting for confirmation. Please try again.");
+    } catch (err) {
+      setProcessingPayment(false);
+      showMpesaError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    }
   };
 
   return (
@@ -269,7 +400,7 @@ export default function Settings() {
       <div className="p-6 space-y-6 animate-fade-in-up max-w-2xl">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage your account and preferences
           </p>
@@ -285,7 +416,7 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-full gradient-brand flex items-center justify-center flex-shrink-0 shadow-brand-md">
+              <div className="w-14 h-14 rounded-full gradient-brand flex items-center justify-center flex-shrink-0 shadow-brand-md ring-4 ring-primary/10">
                 <User className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -312,16 +443,7 @@ export default function Settings() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Email</Label>
-                <Input
-                  type="email"
-                  value={profile.email}
-                  onChange={(e) => {
-                    setProfile((p) => ({ ...p, email: e.target.value }));
-                    setProfileChanged(true);
-                  }}
-                  className="h-9 text-sm"
-                  disabled={!editing}
-                />
+                <Input type="email" value={profile.email} className="h-9 text-sm" disabled title="Email can't be changed here" />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium">Phone</Label>
@@ -358,7 +480,7 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
-        <Dialog open={mpesaOpen} onOpenChange={setMpesaOpen}>
+        <Dialog open={mpesaOpen} onOpenChange={(open) => { if (!open) closeMpesaDialog(); }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Pay with M-Pesa</DialogTitle>
@@ -370,13 +492,20 @@ export default function Settings() {
             <div className="space-y-4">
               <p className="text-sm text-muted-foreground">Enter the phone number to receive the M-Pesa prompt.</p>
               <div className="flex gap-2">
-                <Input value={mpesaPhone} onChange={(e) => { setMpesaPhone(e.target.value); setMpesaMessage(""); }} placeholder="+2547XXXXXXXX" />
+                <Input
+                  value={mpesaPhone}
+                  onChange={(e) => { setMpesaPhone(e.target.value); setMpesaMessage(""); setMpesaMessageIsError(false); }}
+                  placeholder="+2547XXXXXXXX"
+                  disabled={processingPayment}
+                />
               </div>
-              {mpesaMessage ? <p className="text-sm text-success">{mpesaMessage}</p> : null}
+              {mpesaMessage ? (
+                <p className={cn("text-sm", mpesaMessageIsError ? "text-danger" : "text-success")}>{mpesaMessage}</p>
+              ) : null}
             </div>
             <DialogFooter>
               <div className="flex items-center gap-2">
-                <Button variant="ghost" onClick={() => { setMpesaOpen(false); setMpesaPhone(""); setMpesaMessage(""); }}>Cancel</Button>
+                <Button variant="ghost" onClick={closeMpesaDialog}>Cancel</Button>
                 <Button disabled={processingPayment || !/^((\+2547\d{8})|(07\d{8}))$/.test(mpesaPhone)} onClick={confirmMpesaPayment}>
                   {processingPayment ? 'Processing...' : 'Pay with M-Pesa'}
                 </Button>
@@ -412,7 +541,7 @@ export default function Settings() {
                 key={item.id}
                 type="button"
                 onClick={() => setSecurityDialog(item.id)}
-                className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-muted/40 transition-colors cursor-pointer group text-left"
+                className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/40 transition-colors cursor-pointer group text-left"
               >
                 <div>
                   <p className="text-sm font-medium text-foreground">{item.label}</p>
@@ -470,7 +599,9 @@ export default function Settings() {
                 </div>
                 <DialogFooter>
                   <Button variant="outline" size="sm" onClick={() => setSecurityDialog(null)}>Cancel</Button>
-                  <Button size="sm" onClick={handlePasswordSave}>Update Password</Button>
+                  <Button size="sm" onClick={handlePasswordSave} disabled={pwSaving}>
+                    {pwSaving ? "Updating…" : "Update Password"}
+                  </Button>
                 </DialogFooter>
               </>
             )}
@@ -480,27 +611,98 @@ export default function Settings() {
                 <DialogHeader>
                   <DialogTitle>Two-Factor Authentication</DialogTitle>
                   <DialogDescription>
-                    Require a verification code from your authenticator app when signing in.
+                    Require a code from your authenticator app (Google Authenticator, Authy, etc.) when signing in.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border my-2">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("p-2 rounded-lg", twoFAEnabled ? "bg-success/10" : "bg-muted")}>
-                      <Shield className={cn("w-4 h-4", twoFAEnabled ? "text-success" : "text-muted-foreground")} />
+
+                {!twoFAEnabled && !twoFASetup && (
+                  <div className="space-y-3 py-2">
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-muted/30 border border-border">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-muted">
+                          <Shield className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">2FA is disabled</p>
+                          <p className="text-xs text-muted-foreground">Enable to protect your account.</p>
+                        </div>
+                      </div>
+                      <Button size="sm" onClick={beginTwoFactorSetup} disabled={twoFABusy}>
+                        {twoFABusy ? "Starting…" : "Enable"}
+                      </Button>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        2FA is {twoFAEnabled ? "enabled" : "disabled"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {twoFAEnabled ? "Your account has an extra layer of protection." : "Enable to protect your account."}
-                      </p>
-                    </div>
+                    {twoFAError && <p className="text-xs text-danger">{twoFAError}</p>}
                   </div>
-                  <Switch checked={twoFAEnabled} onCheckedChange={handleToggle2FA} />
-                </div>
+                )}
+
+                {!twoFAEnabled && twoFASetup && (
+                  <div className="space-y-3 py-2">
+                    <p className="text-xs text-muted-foreground">
+                      Scan this QR code with your authenticator app, then enter the 6-digit code it shows.
+                    </p>
+                    <div className="flex justify-center">
+                      <img src={twoFASetup.qrDataUrl} alt="2FA QR code" className="w-40 h-40 rounded-lg border border-border" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Can't scan? Enter this key manually</Label>
+                      <p className="text-xs font-mono bg-muted/50 rounded px-2 py-1.5 break-all">{twoFASetup.secret}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">6-digit code</Label>
+                      <Input
+                        value={twoFACode}
+                        onChange={(e) => { setTwoFACode(e.target.value); setTwoFAError(""); }}
+                        inputMode="numeric"
+                        maxLength={6}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    {twoFAError && <p className="text-xs text-danger">{twoFAError}</p>}
+                  </div>
+                )}
+
+                {twoFAEnabled && (
+                  <div className="space-y-3 py-2">
+                    <div className="flex items-center gap-3 p-4 rounded-xl bg-success/10 border border-success/20">
+                      <div className="p-2 rounded-lg bg-success/10">
+                        <Shield className="w-4 h-4 text-success" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">2FA is enabled</p>
+                        <p className="text-xs text-muted-foreground">Your account has an extra layer of protection.</p>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-medium">Enter a code to disable 2FA</Label>
+                      <Input
+                        value={twoFACode}
+                        onChange={(e) => { setTwoFACode(e.target.value); setTwoFAError(""); }}
+                        inputMode="numeric"
+                        maxLength={6}
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                    {twoFAError && <p className="text-xs text-danger">{twoFAError}</p>}
+                  </div>
+                )}
+
                 <DialogFooter>
-                  <Button size="sm" onClick={() => setSecurityDialog(null)}>Done</Button>
+                  <Button variant="outline" size="sm" onClick={() => setSecurityDialog(null)}>Close</Button>
+                  {!twoFAEnabled && twoFASetup && (
+                    <Button size="sm" onClick={confirmTwoFactor} disabled={twoFABusy || twoFACode.length !== 6}>
+                      {twoFABusy ? "Verifying…" : "Confirm & Enable"}
+                    </Button>
+                  )}
+                  {twoFAEnabled && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleDisableTwoFactor}
+                      disabled={twoFABusy || twoFACode.length !== 6}
+                    >
+                      {twoFABusy ? "Disabling…" : "Disable 2FA"}
+                    </Button>
+                  )}
                 </DialogFooter>
               </>
             )}
@@ -511,15 +713,23 @@ export default function Settings() {
                   <DialogTitle>Active Sessions</DialogTitle>
                   <DialogDescription>Devices currently signed in to your account.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-2 py-2">
-                  {sessions.map((s) => (
+                <div className="space-y-2 py-2 max-h-[50vh] overflow-y-auto">
+                  {sessions.loading && (
+                    <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+                  )}
+                  {!sessions.loading && sessions.sessions.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No active sessions.</p>
+                  )}
+                  {sessions.sessions.map((s) => (
                     <div key={s.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
                       <div className="p-1.5 rounded-md bg-muted">
                         <Monitor className="w-3.5 h-3.5 text-muted-foreground" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{s.device}</p>
-                        <p className="text-xs text-muted-foreground">{s.location} · {s.lastActive}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {s.current ? "Active now" : `Last active ${new Date(s.lastSeenAt).toLocaleString()}`}
+                        </p>
                       </div>
                       {s.current ? (
                         <Badge className="text-[10px] h-4 px-2 bg-primary/10 text-primary border-0 flex-shrink-0">
@@ -551,44 +761,58 @@ export default function Settings() {
                   <DialogTitle>API Keys</DialogTitle>
                   <DialogDescription>Keys for integrating LinguaGuard with your own systems.</DialogDescription>
                 </DialogHeader>
-                <div className="space-y-2 py-2">
-                  {apiKeys.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-4">No API keys yet.</p>
-                  )}
-                  {apiKeys.map((k) => (
-                    <div key={k.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{k.label}</p>
-                        <p className="text-xs text-muted-foreground font-mono truncate">{k.key}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">Created {k.created}</p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:text-primary hover:bg-primary/10"
-                          onClick={() => copyApiKey(k.key)}
-                          aria-label="Copy API key"
-                        >
+                <div className="space-y-2 py-2 max-h-[50vh] overflow-y-auto">
+                  {revealedKey && (
+                    <div className="p-3 rounded-lg bg-warning/10 border border-warning/20 space-y-1.5">
+                      <p className="text-xs font-medium text-foreground">Copy this key now — it won't be shown again:</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-mono bg-background/60 rounded px-2 py-1.5 flex-1 truncate">{revealedKey}</p>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => copyApiKey(revealedKey)} aria-label="Copy API key">
                           <Copy className="w-3.5 h-3.5" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 hover:text-danger hover:bg-danger/10"
-                          onClick={() => revokeApiKey(k.id)}
-                          aria-label="Revoke API key"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       </div>
                     </div>
+                  )}
+                  {apiKeys.loading && (
+                    <p className="text-xs text-muted-foreground text-center py-4">Loading…</p>
+                  )}
+                  {!apiKeys.loading && apiKeys.keys.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-4">No API keys yet.</p>
+                  )}
+                  {apiKeys.keys.map((k) => (
+                    <div key={k.id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 border border-border">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{k.label}</p>
+                        <p className="text-xs text-muted-foreground font-mono truncate">{k.prefix}••••••••••••</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Created {new Date(k.createdAt).toLocaleDateString()}
+                          {k.lastUsedAt ? ` · Last used ${new Date(k.lastUsedAt).toLocaleDateString()}` : " · Never used"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 hover:text-danger hover:bg-danger/10 flex-shrink-0"
+                        onClick={() => revokeApiKey(k.id)}
+                        aria-label="Revoke API key"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Key label (e.g. Production)"
+                    value={newKeyLabel}
+                    onChange={(e) => setNewKeyLabel(e.target.value)}
+                    className="h-9 text-sm"
+                  />
+                </div>
                 <DialogFooter>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={generateApiKey}>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={generateApiKey} disabled={creatingKey}>
                     <Plus className="w-3.5 h-3.5" />
-                    Generate New Key
+                    {creatingKey ? "Generating…" : "Generate New Key"}
                   </Button>
                   <Button size="sm" onClick={() => setSecurityDialog(null)}>Done</Button>
                 </DialogFooter>
@@ -609,10 +833,10 @@ export default function Settings() {
             {notifications.map((n) => (
               <div
                 key={n.id}
-                className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/30 transition-colors"
+                className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/30 transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-1.5 rounded-md bg-muted">
+                  <div className="p-1.5 rounded-lg bg-muted">
                     <n.icon className="w-3.5 h-3.5 text-muted-foreground" />
                   </div>
                   <div>
@@ -684,7 +908,7 @@ export default function Settings() {
                           className="w-full mt-3 h-7 text-xs"
                           onClick={() => handleSubscriptionClick(plan)}
                         >
-                          {plan === "free" ? "Downgrade" : "Upgrade"}
+                          {planPriority(plan) > planPriority(currentPlan) ? "Upgrade" : "Downgrade"}
                         </Button>
                       </>
                     )}

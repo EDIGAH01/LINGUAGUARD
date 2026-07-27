@@ -5,126 +5,148 @@
 
 @layer base {
   :root {
-    --background: 240 20% 98%;
-    --foreground: 240 15% 12%;
+    --background: 200 20% 98%;
+    --foreground: 205 25% 12%;
 
     --card: 0 0% 100%;
-    --card-foreground: 240 15% 12%;
+    --card-foreground: 205 25% 12%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 240 15% 12%;
+    --popover-foreground: 205 25% 12%;
 
-    --primary: 248 87% 60%;
+    /* Brand palette lifted straight from the 3D logo: teal shield (primary),
+       coral checkmark (accent), gold ring (warning), mint dot (success).
+       Lightness on every one of these is tuned to actually pass WCAG AA
+       (>=4.5:1) as both white-on-color button fill AND as colored text on
+       the page/card background — the logo's own brighter tones read great
+       as a 3D render but fail contrast checks when reused as flat UI color,
+       which is a real, found-by-audit bug this fixes. */
+    --primary: 188 85% 30%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 14% 94%;
-    --secondary-foreground: 240 15% 20%;
+    --secondary: 200 16% 94%;
+    --secondary-foreground: 205 25% 20%;
 
-    --muted: 240 14% 94%;
-    --muted-foreground: 240 8% 52%;
+    --muted: 200 16% 94%;
+    --muted-foreground: 205 10% 48%;
 
-    --accent: 248 87% 95%;
-    --accent-foreground: 248 87% 40%;
+    --accent: 9 100% 95%;
+    --accent-foreground: 9 75% 42%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 84% 46%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 149 65% 30%;
     --success-foreground: 0 0% 100%;
-    --success-subtle: 142 76% 94%;
+    --success-subtle: 149 65% 94%;
 
-    --warning: 38 92% 50%;
+    --warning: 44 90% 28%;
     --warning-foreground: 0 0% 100%;
-    --warning-subtle: 38 92% 94%;
+    --warning-subtle: 44 96% 94%;
 
-    --danger: 0 84% 60%;
+    --danger: 0 84% 46%;
     --danger-foreground: 0 0% 100%;
     --danger-subtle: 0 84% 95%;
 
-    --info: 210 100% 56%;
+    --info: 205 100% 38%;
     --info-foreground: 0 0% 100%;
-    --info-subtle: 210 100% 94%;
+    --info-subtle: 205 100% 94%;
 
-    --border: 240 10% 90%;
-    --input: 240 10% 90%;
-    --ring: 248 87% 60%;
+    /* Previously L=90% — ~1.25:1 against the white card, essentially
+       invisible. Darkened to hit the WCAG 1.4.11 non-text-contrast target
+       (~3:1) so card/input/table borders actually read as a visible line. */
+    --border: 200 16% 58%;
+    --input: 200 16% 58%;
+    --ring: 188 85% 30%;
 
     --radius: 0.625rem;
 
-    --sidebar-background: 248 30% 10%;
-    --sidebar-foreground: 240 20% 85%;
-    --sidebar-primary: 248 87% 65%;
+    --sidebar-background: 200 32% 8%;
+    --sidebar-foreground: 200 20% 85%;
+    --sidebar-primary: 188 85% 52%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 248 30% 16%;
-    --sidebar-accent-foreground: 240 20% 90%;
-    --sidebar-border: 248 20% 16%;
-    --sidebar-ring: 248 87% 65%;
+    --sidebar-accent: 200 28% 14%;
+    --sidebar-accent-foreground: 200 20% 90%;
+    /* Same invisible-border issue as --border above, against the always-dark
+       sidebar background. */
+    --sidebar-border: 200 20% 42%;
+    --sidebar-ring: 188 85% 52%;
 
-    --gradient-brand: linear-gradient(135deg, hsl(248 87% 60%), hsl(270 80% 60%));
-    --gradient-surface: linear-gradient(180deg, hsl(240 20% 98%), hsl(240 14% 96%));
-    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(248 50% 99%));
+    --gradient-brand: linear-gradient(135deg, hsl(188 90% 45%), hsl(205 95% 48%));
+    --gradient-surface: linear-gradient(180deg, hsl(200 20% 98%), hsl(200 16% 96%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(188 50% 99%));
 
-    --shadow-sm: 0 1px 3px 0 hsl(248 87% 60% / 0.08);
-    --shadow-md: 0 4px 16px -2px hsl(248 87% 60% / 0.12);
-    --shadow-lg: 0 10px 40px -4px hsl(248 87% 60% / 0.18);
-    --shadow-glow: 0 0 30px hsl(248 87% 60% / 0.25);
+    --shadow-sm: 0 1px 3px 0 hsl(188 85% 40% / 0.08);
+    --shadow-md: 0 4px 16px -2px hsl(188 85% 40% / 0.14);
+    --shadow-lg: 0 10px 40px -4px hsl(188 85% 40% / 0.2);
+    --shadow-glow: 0 0 30px hsl(188 85% 45% / 0.3);
 
     --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 240 15% 8%;
-    --foreground: 240 20% 92%;
+    --background: 205 22% 7%;
+    --foreground: 200 20% 92%;
 
-    --card: 240 15% 11%;
-    --card-foreground: 240 20% 92%;
+    --card: 205 20% 10%;
+    --card-foreground: 200 20% 92%;
 
-    --popover: 240 15% 11%;
-    --popover-foreground: 240 20% 92%;
+    --popover: 205 20% 10%;
+    --popover-foreground: 200 20% 92%;
 
-    --primary: 248 87% 65%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 188 90% 52%;
+    --primary-foreground: 205 40% 8%;
 
-    --secondary: 240 15% 18%;
-    --secondary-foreground: 240 20% 85%;
+    --secondary: 205 18% 17%;
+    --secondary-foreground: 200 20% 85%;
 
-    --muted: 240 15% 18%;
-    --muted-foreground: 240 8% 55%;
+    --muted: 205 18% 17%;
+    --muted-foreground: 205 10% 58%;
 
-    --accent: 248 30% 20%;
-    --accent-foreground: 248 87% 75%;
+    --accent: 9 45% 20%;
+    --accent-foreground: 9 90% 72%;
 
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
-    --success-subtle: 142 30% 15%;
+    --success: 149 55% 48%;
+    --success-foreground: 149 45% 8%;
+    --success-subtle: 149 30% 15%;
 
-    --warning: 38 85% 55%;
-    --warning-foreground: 0 0% 100%;
-    --warning-subtle: 38 30% 15%;
+    --warning: 44 90% 58%;
+    --warning-foreground: 44 45% 10%;
+    --warning-subtle: 44 30% 15%;
 
-    --danger: 0 72% 51%;
+    --danger: 0 72% 55%;
     --danger-foreground: 0 0% 100%;
     --danger-subtle: 0 30% 15%;
 
-    --info: 210 90% 60%;
-    --info-foreground: 0 0% 100%;
-    --info-subtle: 210 30% 15%;
+    --info: 205 90% 62%;
+    /* White-on-bright-blue was the same "both bright" contrast failure as
+       the sidebar bug — dark text here instead, matching how success/warning
+       already do it in dark mode. */
+    --info-foreground: 205 45% 8%;
+    --info-subtle: 205 30% 15%;
 
-    --border: 240 15% 18%;
-    --input: 240 15% 18%;
-    --ring: 248 87% 65%;
+    /* Previously L=17% — ~1.25:1 against the card, essentially invisible.
+       Lightened to hit ~3:1 against both card and page background. */
+    --border: 205 18% 38%;
+    --input: 205 18% 38%;
+    --ring: 188 90% 52%;
 
-    --sidebar-background: 240 18% 6%;
-    --sidebar-foreground: 240 20% 80%;
-    --sidebar-primary: 248 87% 65%;
+    --sidebar-background: 205 26% 5%;
+    --sidebar-foreground: 200 20% 80%;
+    --sidebar-primary: 188 90% 55%;
+    /* Only consumer of this token is the sidebar's own logo wordmark, which
+       sits directly on --sidebar-background (always dark) — not on a solid
+       --sidebar-primary fill — so it must stay light/white regardless of
+       theme, unlike a typical "foreground for a colored surface" token. */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 248 25% 14%;
-    --sidebar-accent-foreground: 240 20% 90%;
-    --sidebar-border: 248 20% 12%;
-    --sidebar-ring: 248 87% 65%;
+    --sidebar-accent: 200 25% 13%;
+    --sidebar-accent-foreground: 200 20% 90%;
+    /* Same invisible-border issue as --border above. */
+    --sidebar-border: 205 20% 40%;
+    --sidebar-ring: 188 90% 55%;
   }
 }
 

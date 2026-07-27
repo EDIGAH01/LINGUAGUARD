@@ -6,15 +6,16 @@ import {
   CheckCircle2,
   Link2,
   Filter,
-  TrendingUp,
   ArrowUpRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { activityEvents, totalStats, type ActivityStatus } from "@/lib/data";
-import { usePlatforms, useRules } from "@/lib/store";
+import { type ActivityStatus } from "@/lib/data";
+import { usePlatforms } from "@/lib/store";
+import { useServerRules } from "@/lib/rules";
+import { useActivity, useContentStats, formatRelativeTime } from "@/lib/activity";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 
@@ -26,41 +27,50 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
 
 export default function Dashboard() {
   const [platforms] = usePlatforms();
-  const [rules] = useRules();
-  const recentEvents = activityEvents.slice(0, 6);
+  const { rules } = useServerRules();
+  const { events } = useActivity();
+  const { stats } = useContentStats();
+  const recentEvents = events.slice(0, 6);
   const connectedPlatforms = platforms.filter((p) => p.status === "connected");
   const activeRules = rules.filter((r) => r.enabled).length;
+  const totalFiltered = stats?.totalFiltered ?? 0;
+  const blocked = stats?.blocked ?? 0;
+  const flagged = stats?.flagged ?? 0;
+
+  // Real formula, not a fabricated number: half from how much of your rule
+  // set is actually enabled, half from how many of your platforms are
+  // connected — the same two ratios shown as progress bars below.
+  const ruleRatio = rules.length > 0 ? activeRules / rules.length : 0;
+  const platformRatio = platforms.length > 0 ? connectedPlatforms.length / platforms.length : 0;
+  const protectionScore = Math.round(((ruleRatio + platformRatio) / 2) * 100);
 
   const statCards = [
     {
       title: "Total Filtered",
-      value: totalStats.totalFiltered.toLocaleString(),
-      change: "+12% today",
+      value: totalFiltered.toLocaleString(),
+      change: "All time",
       icon: ShieldCheck,
       gradient: "from-primary/10 to-primary/5",
       iconBg: "bg-primary/10",
       iconColor: "text-primary",
-      trend: "up",
     },
     {
       title: "Content Blocked",
-      value: totalStats.blocked.toLocaleString(),
-      change: "+8% today",
+      value: blocked.toLocaleString(),
+      change: "All time",
       icon: ShieldX,
       gradient: "from-danger/10 to-danger/5",
       iconBg: "bg-danger/10",
       iconColor: "text-danger",
-      trend: "up",
     },
     {
       title: "Items Flagged",
-      value: totalStats.flagged.toLocaleString(),
-      change: "+5% today",
+      value: flagged.toLocaleString(),
+      change: "All time",
       icon: AlertTriangle,
       gradient: "from-warning/10 to-warning/5",
       iconBg: "bg-warning/10",
       iconColor: "text-warning",
-      trend: "up",
     },
     {
       title: "Platforms Active",
@@ -70,7 +80,6 @@ export default function Dashboard() {
       gradient: "from-success/10 to-success/5",
       iconBg: "bg-success/10",
       iconColor: "text-success",
-      trend: "neutral",
     },
   ];
 
@@ -80,7 +89,7 @@ export default function Dashboard() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Real-time content protection overview
             </p>
@@ -96,20 +105,21 @@ export default function Dashboard() {
         {/* Stats Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {statCards.map((stat) => (
-            <Card key={stat.title} className="border-border shadow-brand-sm overflow-hidden">
+            <Card
+              key={stat.title}
+              className={cn(
+                "border-border shadow-brand-sm overflow-hidden bg-gradient-to-br transition-all duration-200 hover:shadow-brand-md hover:-translate-y-0.5",
+                stat.gradient
+              )}
+            >
               <CardContent className="p-5">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="text-xs font-medium text-muted-foreground mb-1">{stat.title}</p>
                     <p className="text-2xl font-bold text-foreground">{stat.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                      {stat.trend === "up" && (
-                        <TrendingUp className="w-3 h-3 text-success" />
-                      )}
-                      {stat.change}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{stat.change}</p>
                   </div>
-                  <div className={cn("p-2.5 rounded-xl", stat.iconBg)}>
+                  <div className={cn("p-2.5 rounded-xl ring-4 ring-white/40 dark:ring-white/5", stat.iconBg)}>
                     <stat.icon className={cn("w-5 h-5", stat.iconColor)} />
                   </div>
                 </div>
@@ -136,12 +146,13 @@ export default function Dashboard() {
                     <circle
                       cx="50" cy="50" r="40" fill="none"
                       stroke="hsl(var(--primary))" strokeWidth="8"
-                      strokeDasharray={`${2 * Math.PI * 40 * totalStats.protectionScore / 100} ${2 * Math.PI * 40}`}
+                      strokeDasharray={`${2 * Math.PI * 40 * protectionScore / 100} ${2 * Math.PI * 40}`}
                       strokeLinecap="round"
+                      style={{ filter: "drop-shadow(0 0 6px hsl(var(--primary) / 0.5))" }}
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-foreground">{totalStats.protectionScore}</span>
+                    <span className="text-2xl font-bold text-foreground">{protectionScore}</span>
                     <span className="text-xs text-muted-foreground">/ 100</span>
                   </div>
                 </div>
@@ -156,7 +167,7 @@ export default function Dashboard() {
                   <span>Platforms Connected</span>
                   <span className="font-semibold text-foreground">{connectedPlatforms.length}/{platforms.length}</span>
                 </div>
-                <Progress value={(connectedPlatforms.length / platforms.length) * 100} className="h-1.5" />
+                <Progress value={platforms.length > 0 ? (connectedPlatforms.length / platforms.length) * 100 : 0} className="h-1.5" />
               </div>
             </CardContent>
           </Card>
@@ -181,14 +192,14 @@ export default function Dashboard() {
                 {connectedPlatforms.map((p) => (
                   <div
                     key={p.id}
-                    className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/40 border border-border"
+                    className="flex items-center gap-2 p-2.5 rounded-xl bg-muted/40 border border-border transition-colors hover:bg-muted/70"
                   >
-                    <div className={cn("w-7 h-7 rounded-md bg-gradient-to-br flex items-center justify-center flex-shrink-0", p.color)}>
+                    <div className={cn("w-7 h-7 rounded-lg bg-gradient-to-br flex items-center justify-center flex-shrink-0 shadow-sm", p.color)}>
                       <Filter className="w-3.5 h-3.5 text-white" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-foreground truncate">{p.name}</p>
-                      <p className="text-[10px] text-success">{p.filteredToday} filtered</p>
+                      <p className="text-[10px] text-success">{stats?.byPlatform[p.id] ?? 0} filtered</p>
                     </div>
                   </div>
                 ))}
@@ -212,12 +223,18 @@ export default function Dashboard() {
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
+            {recentEvents.length === 0 && (
+              <p className="text-xs text-muted-foreground text-center py-8">
+                No activity yet — try the test scanner on the{" "}
+                <Link to="/rules" className="text-primary hover:underline">Filter Rules</Link> page.
+              </p>
+            )}
             {recentEvents.map((event) => {
               const cfg = statusConfig[event.status];
               return (
                 <div
                   key={event.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border hover:bg-muted/50 transition-colors"
+                  className="flex items-start gap-3 p-3 rounded-xl bg-muted/30 border border-border hover:bg-muted/50 transition-colors"
                 >
                   <Badge
                     className={cn(
@@ -236,7 +253,7 @@ export default function Dashboard() {
                       <span className="text-[10px] text-muted-foreground">{event.ruleMatched}</span>
                     </div>
                   </div>
-                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{event.timestamp}</span>
+                  <span className="text-[10px] text-muted-foreground flex-shrink-0">{formatRelativeTime(event.timestamp)}</span>
                 </div>
               );
             })}

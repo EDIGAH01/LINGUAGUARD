@@ -14,9 +14,12 @@ import {
   Trash2,
   Hash,
   Lock,
+  FlaskConical,
+  ShieldCheck,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -38,13 +41,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  type FilterRule,
   type FilterCategory,
   type FilterSeverity,
+  type ActivityStatus,
   getCategoryLabel,
   getSeverityLabel,
 } from "@/lib/data";
-import { useRules } from "@/lib/store";
+import { useServerRules, type ServerFilterRule } from "@/lib/rules";
+import { scanContent } from "@/lib/activity";
+import { usePlatforms } from "@/lib/store";
 import { usePlan, formatLimit } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
@@ -73,21 +78,25 @@ const severityColors: Record<FilterSeverity, string> = {
 };
 
 export default function FilterRules() {
-  const [rules, updateRules] = useRules();
+  const { rules, createRule, updateRule, deleteRule, refresh } = useServerRules();
+  const [platforms] = usePlatforms();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<FilterRule | null>(null);
+  const [editingRule, setEditingRule] = useState<ServerFilterRule | null>(null);
   const [form, setForm] = useState({ name: "", category: "custom" as FilterCategory, severity: "medium" as FilterSeverity, description: "", keywords: "" });
   const { limits } = usePlan();
 
+  const [scanPlatformId, setScanPlatformId] = useState<string>("manual");
+  const [scanContentText, setScanContentText] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanResult, setScanResult] = useState<{ status: ActivityStatus; ruleMatched: string } | null>(null);
+
   const atRuleLimit = rules.length >= limits.maxRules;
 
-  const handleToggle = (id: string) => {
-    updateRules((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r))
-    );
+  const handleToggle = (id: string, enabled: boolean) => {
+    updateRule(id, { enabled: !enabled }).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to update rule"));
   };
 
-  const handleEdit = (rule: FilterRule) => {
+  const handleEdit = (rule: ServerFilterRule) => {
     setEditingRule(rule);
     setForm({
       name: rule.name,
@@ -107,32 +116,45 @@ export default function FilterRules() {
   };
 
   const handleDelete = (id: string) => {
-    updateRules((prev) => prev.filter((r) => r.id !== id));
+    deleteRule(id).catch((err) => toast.error(err instanceof Error ? err.message : "Failed to delete rule"));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name) return;
-    if (editingRule) {
-      updateRules((prev) =>
-        prev.map((r) =>
-          r.id === editingRule.id
-            ? { ...r, ...form, keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean) }
-            : r
-        )
-      );
-    } else {
-      const newRule: FilterRule = {
-        id: `r${Date.now()}`,
-        ...form,
-        enabled: true,
-        keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean),
-        matchCount: 0,
-        platforms: [],
-        createdAt: new Date().toISOString().split("T")[0],
-      };
-      updateRules((prev) => [...prev, newRule]);
+    const keywords = form.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+    try {
+      if (editingRule) {
+        await updateRule(editingRule.id, { ...form, keywords });
+      } else {
+        await createRule({ ...form, keywords });
+      }
+      setDialogOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save rule");
     }
-    setDialogOpen(false);
+  };
+
+  const connectedPlatforms = platforms.filter((p) => p.status === "connected");
+
+  const handleScan = async () => {
+    if (!scanContentText.trim()) return;
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const platform = connectedPlatforms.find((p) => p.id === scanPlatformId);
+      const { event } = await scanContent({
+        platformId: scanPlatformId,
+        platformName: platform ? platform.name : "Manual Test",
+        sender: "Test input",
+        content: scanContentText,
+      });
+      setScanResult({ status: event.status, ruleMatched: event.ruleMatched });
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to scan content");
+    } finally {
+      setScanning(false);
+    }
   };
 
   const enabledRules = rules.filter((r) => r.enabled);
@@ -144,7 +166,7 @@ export default function FilterRules() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Filter Rules</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Filter Rules</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Configure what content gets blocked or flagged
             </p>
@@ -154,6 +176,56 @@ export default function FilterRules() {
             Add Rule
           </Button>
         </div>
+
+        {/* Test Scanner — no live platform ingestion exists yet (see Connections),
+            so this is the genuine trigger point: content actually gets scanned
+            against your enabled rules below and a real activity event is stored. */}
+        <Card className="border-border shadow-brand-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <FlaskConical className="w-4 h-4 text-primary" />
+              Test Your Rules
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Textarea
+                placeholder="Paste content to test against your enabled rules…"
+                value={scanContentText}
+                onChange={(e) => setScanContentText(e.target.value)}
+                className="text-sm min-h-[60px] resize-none flex-1"
+              />
+              <div className="flex sm:flex-col gap-2">
+                <Select value={scanPlatformId} onValueChange={setScanPlatformId}>
+                  <SelectTrigger className="h-9 w-full sm:w-36 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Manual Test</SelectItem>
+                    {connectedPlatforms.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button size="sm" className="h-9" disabled={scanning || !scanContentText.trim()} onClick={handleScan}>
+                  {scanning ? "Scanning…" : "Scan"}
+                </Button>
+              </div>
+            </div>
+            {scanResult && (
+              <div className={cn(
+                "flex items-center gap-2 p-3 rounded-lg text-xs font-medium",
+                scanResult.status === "blocked" && "bg-danger/10 text-danger",
+                scanResult.status === "flagged" && "bg-warning/10 text-warning",
+                scanResult.status === "allowed" && "bg-success/10 text-success"
+              )}>
+                {scanResult.status === "allowed" ? <ShieldCheck className="w-3.5 h-3.5" /> : <ShieldX className="w-3.5 h-3.5" />}
+                <span className="capitalize">{scanResult.status}</span>
+                {scanResult.ruleMatched !== "—" && <span>· Matched: {scanResult.ruleMatched}</span>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Plan limit notice */}
         {atRuleLimit && (
@@ -169,9 +241,9 @@ export default function FilterRules() {
         )}
 
         {/* Stats bar */}
-        <div className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border">
+        <div className="flex items-center gap-4 p-4 rounded-xl bg-gradient-to-br from-primary/5 to-transparent border border-border shadow-brand-sm">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-success" />
+            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm font-semibold text-foreground">{enabledRules.length} Active</span>
           </div>
           <div className="w-px h-4 bg-border" />
@@ -183,27 +255,37 @@ export default function FilterRules() {
           <div className="flex items-center gap-2">
             <Filter className="w-3.5 h-3.5 text-primary" />
             <span className="text-sm text-muted-foreground">
-              {rules.reduce((acc, r) => acc + r.matchCount, 0).toLocaleString()} total matches
+              {(() => {
+                const total = rules.reduce((acc, r) => acc + r.matchCount, 0);
+                return `${total.toLocaleString()} total ${total === 1 ? "match" : "matches"}`;
+              })()}
             </span>
           </div>
         </div>
 
         {/* Rules List */}
         <div className="space-y-3">
+          {rules.length === 0 && (
+            <div className="py-16 text-center text-muted-foreground border border-dashed border-border rounded-xl">
+              <Filter className="w-10 h-10 mx-auto mb-3 opacity-30" />
+              <p className="text-sm">No filter rules yet</p>
+              <p className="text-xs mt-1">Click "Add Rule" above to create your first one.</p>
+            </div>
+          )}
           {rules.map((rule) => {
             const Icon = categoryIcons[rule.category];
             return (
               <Card
                 key={rule.id}
                 className={cn(
-                  "border-border shadow-brand-sm transition-all duration-200 hover:shadow-brand-md",
+                  "border-border shadow-brand-sm transition-all duration-200 hover:shadow-brand-md hover:-translate-y-0.5",
                   !rule.enabled && "opacity-60"
                 )}
               >
                 <CardHeader className="pb-0 pt-4 px-4">
                   <div className="flex items-start gap-3">
                     {/* Icon */}
-                    <div className={cn("p-2 rounded-lg border mt-0.5 flex-shrink-0", categoryColors[rule.category])}>
+                    <div className={cn("p-2 rounded-xl border mt-0.5 flex-shrink-0", categoryColors[rule.category])}>
                       <Icon className="w-4 h-4" />
                     </div>
 
@@ -225,7 +307,7 @@ export default function FilterRules() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <Switch
                         checked={rule.enabled}
-                        onCheckedChange={() => handleToggle(rule.id)}
+                        onCheckedChange={() => handleToggle(rule.id, rule.enabled)}
                       />
                     </div>
                   </div>
@@ -253,7 +335,7 @@ export default function FilterRules() {
 
                     <div className="flex items-center gap-1">
                       <span className="text-[11px] text-muted-foreground mr-2">
-                        {rule.matchCount.toLocaleString()} matches
+                        {rule.matchCount.toLocaleString()} {rule.matchCount === 1 ? "match" : "matches"}
                       </span>
                       <Button
                         variant="ghost"

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useAuth } from "./auth";
 
 export type PlanTier = "free" | "pro" | "enterprise";
 
@@ -42,46 +42,13 @@ export const planLimits: Record<PlanTier, PlanLimits> = {
 export const formatLimit = (n: number): string =>
   n === Infinity ? "Unlimited" : String(n);
 
-const isPlanTier = (v: unknown): v is PlanTier =>
-  v === "free" || v === "pro" || v === "enterprise";
-
-export function getStoredPlan(): PlanTier {
-  try {
-    const stored = window.localStorage.getItem("linguaguard-profile");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (isPlanTier(parsed.currentPlan)) return parsed.currentPlan;
-    }
-  } catch {
-    // corrupt storage — fall back to default
-  }
-  return "pro";
-}
-
 /**
- * Current subscription tier + its limits. Re-renders when the plan is
- * changed on the Settings page (custom event) or in another tab (storage).
+ * Current subscription tier + its limits, sourced from the authenticated
+ * user's account (server-authoritative — this is what an admin changes when
+ * they manage a user's subscription from the Admin page).
  */
 export function usePlan() {
-  const [plan, setPlan] = useState<PlanTier>(getStoredPlan);
-
-  useEffect(() => {
-    const sync = () => setPlan(getStoredPlan());
-    const onCustom = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && isPlanTier(detail.currentPlan)) setPlan(detail.currentPlan);
-      else sync();
-    };
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === "linguaguard-profile") sync();
-    };
-    window.addEventListener("storage", onStorage);
-    window.addEventListener("linguaguard-profile-changed", onCustom as EventListener);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      window.removeEventListener("linguaguard-profile-changed", onCustom as EventListener);
-    };
-  }, []);
-
+  const { user } = useAuth();
+  const plan: PlanTier = user?.plan ?? "free";
   return { plan, limits: planLimits[plan] };
 }

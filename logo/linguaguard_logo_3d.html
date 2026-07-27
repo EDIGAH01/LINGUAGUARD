@@ -1,0 +1,132 @@
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);">A rotating 3D LinguaGuard logo: an extruded blue shield with a white speech bubble and checkmark, above the LinguaGuard wordmark.</h2>
+<div style="display:flex;flex-direction:column;align-items:center;padding:1rem 0;">
+  <div id="stage" style="width:420px;height:340px;cursor:grab;touch-action:none;"></div>
+  <div style="font-size:34px;font-weight:500;letter-spacing:1px;margin-top:4px;"><span style="color:#2286CF;">Lingua</span><span style="color:#0F3B5C;">Guard</span></div>
+  <div style="font-size:13px;letter-spacing:4px;color:var(--text-muted);margin-top:6px;">LANGUAGE, PROTECTED</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  var stage = document.getElementById('stage');
+  var W = 420, H = 340;
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(38, W/H, 0.1, 1000);
+  camera.position.set(0, 0, 340);
+  var renderer = new THREE.WebGLRenderer({antialias:true, alpha:true});
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  stage.appendChild(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  var key = new THREE.DirectionalLight(0xffffff, 0.85);
+  key.position.set(120, 160, 200);
+  scene.add(key);
+  var rim = new THREE.DirectionalLight(0x9fd0ff, 0.35);
+  rim.position.set(-150, -60, -120);
+  scene.add(rim);
+
+  var group = new THREE.Group();
+  scene.add(group);
+
+  var shieldShape = new THREE.Shape();
+  shieldShape.moveTo(0, 88);
+  shieldShape.lineTo(64, 64);
+  shieldShape.lineTo(64, -6);
+  shieldShape.quadraticCurveTo(64, -52, 0, -88);
+  shieldShape.quadraticCurveTo(-64, -52, -64, -6);
+  shieldShape.lineTo(-64, 64);
+  shieldShape.closePath();
+
+  var shieldGeo = new THREE.ExtrudeGeometry(shieldShape, {depth: 22, bevelEnabled: true, bevelThickness: 4, bevelSize: 4, bevelSegments: 3, curveSegments: 24});
+  shieldGeo.center();
+  var shield = new THREE.Mesh(shieldGeo, new THREE.MeshStandardMaterial({color: 0x1B6CA8, roughness: 0.42, metalness: 0.25}));
+  group.add(shield);
+
+  var rimShape = new THREE.Shape();
+  rimShape.moveTo(0, 97);
+  rimShape.lineTo(71, 71);
+  rimShape.lineTo(71, -7);
+  rimShape.quadraticCurveTo(71, -58, 0, -97);
+  rimShape.quadraticCurveTo(-71, -58, -71, -7);
+  rimShape.lineTo(-71, 71);
+  rimShape.closePath();
+  var rimGeo = new THREE.ExtrudeGeometry(rimShape, {depth: 12, bevelEnabled: true, bevelThickness: 2, bevelSize: 2, bevelSegments: 2, curveSegments: 24});
+  rimGeo.center();
+  var rimMesh = new THREE.Mesh(rimGeo, new THREE.MeshStandardMaterial({color: 0x0F3B5C, roughness: 0.5, metalness: 0.3}));
+  rimMesh.position.z = -8;
+  group.add(rimMesh);
+
+  var bubbleShape = new THREE.Shape();
+  bubbleShape.moveTo(-30, 26);
+  bubbleShape.lineTo(30, 26);
+  bubbleShape.quadraticCurveTo(40, 26, 40, 16);
+  bubbleShape.lineTo(40, -8);
+  bubbleShape.quadraticCurveTo(40, -18, 30, -18);
+  bubbleShape.lineTo(-2, -18);
+  bubbleShape.lineTo(-16, -32);
+  bubbleShape.lineTo(-16, -18);
+  bubbleShape.lineTo(-30, -18);
+  bubbleShape.quadraticCurveTo(-40, -18, -40, -8);
+  bubbleShape.lineTo(-40, 16);
+  bubbleShape.quadraticCurveTo(-40, 26, -30, 26);
+  bubbleShape.closePath();
+  var bubbleGeo = new THREE.ExtrudeGeometry(bubbleShape, {depth: 10, bevelEnabled: true, bevelThickness: 2, bevelSize: 2, bevelSegments: 2, curveSegments: 16});
+  bubbleGeo.center();
+  var bubble = new THREE.Mesh(bubbleGeo, new THREE.MeshStandardMaterial({color: 0xF5F8FB, roughness: 0.35, metalness: 0.05}));
+  bubble.position.set(0, 6, 24);
+  group.add(bubble);
+
+  var checkPts = [new THREE.Vector3(-14, -2, 0), new THREE.Vector3(-4, -12, 0), new THREE.Vector3(16, 8, 0)];
+  var checkCurve = new THREE.CatmullRomCurve3(checkPts);
+  var checkGeo = new THREE.TubeGeometry(checkCurve, 20, 3.2, 12, false);
+  var checkMat = new THREE.MeshStandardMaterial({color: 0x2286CF, roughness: 0.4, metalness: 0.2});
+  var check = new THREE.Mesh(checkGeo, checkMat);
+  check.position.set(0, 4, 34);
+  group.add(check);
+  var capGeo = new THREE.SphereGeometry(3.2, 12, 12);
+  [checkPts[0], checkPts[2]].forEach(function(p){
+    var cap = new THREE.Mesh(capGeo, checkMat);
+    cap.position.set(p.x, p.y + 4, 34);
+    group.add(cap);
+  });
+
+  var dotGeo = new THREE.SphereGeometry(3, 14, 14);
+  var dotMat = new THREE.MeshStandardMaterial({color: 0x9CC4E4, roughness: 0.45, metalness: 0.1});
+  [-14, 0, 14].forEach(function(x){
+    var d = new THREE.Mesh(dotGeo, dotMat);
+    d.position.set(x, 22, 32);
+    group.add(d);
+  });
+
+  group.scale.set(1.15, 1.15, 1.15);
+
+  var dragging = false, lastX = 0, lastY = 0, velX = 0, targetTiltX = 0.05;
+  var rotY = -0.4;
+
+  function onDown(e){ dragging = true; stage.style.cursor = 'grabbing'; lastX = e.clientX; lastY = e.clientY; }
+  function onMove(e){
+    if(!dragging) return;
+    var dx = e.clientX - lastX, dy = e.clientY - lastY;
+    rotY += dx * 0.01;
+    targetTiltX = Math.max(-0.6, Math.min(0.6, targetTiltX + dy * 0.005));
+    velX = dx * 0.01;
+    lastX = e.clientX; lastY = e.clientY;
+  }
+  function onUp(){ dragging = false; stage.style.cursor = 'grab'; }
+  stage.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+
+  function animate(){
+    requestAnimationFrame(animate);
+    if(!dragging){
+      velX *= 0.95;
+      rotY += 0.006 + velX;
+    }
+    group.rotation.y = rotY;
+    group.rotation.x += (targetTiltX - group.rotation.x) * 0.08;
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+</script>

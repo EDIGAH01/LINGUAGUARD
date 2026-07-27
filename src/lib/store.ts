@@ -1,16 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import {
-  platforms as defaultPlatforms,
-  filterRules as defaultRules,
-  type Platform,
-  type FilterRule,
-} from "./data";
+import { platforms as defaultPlatforms, type Platform } from "./data";
 import { planLimits, type PlanTier } from "./plan";
 
 const PLATFORMS_KEY = "linguaguard-platforms";
-const RULES_KEY = "linguaguard-rules";
 
-type StoreKey = typeof PLATFORMS_KEY | typeof RULES_KEY;
+type StoreKey = typeof PLATFORMS_KEY;
 
 const changeEvent = (key: StoreKey) => `${key}-changed`;
 
@@ -67,8 +61,6 @@ function useStored<T>(
 
 export const usePlatforms = () =>
   useStored<Platform[]>(PLATFORMS_KEY, defaultPlatforms);
-
-export const useRules = () => useStored<FilterRule[]>(RULES_KEY, defaultRules);
 
 export const loadPlatforms = (): Platform[] =>
   load(PLATFORMS_KEY, defaultPlatforms);

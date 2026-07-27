@@ -19,11 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  activityEvents,
-  type ActivityEvent,
   type ActivityStatus,
   getCategoryLabel,
 } from "@/lib/data";
+import { useActivity, formatRelativeTime } from "@/lib/activity";
 import { usePlan } from "@/lib/plan";
 import { cn } from "@/lib/utils";
 
@@ -50,29 +49,16 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
 
 const ITEMS_PER_PAGE = 8;
 
-// Parses relative timestamps like "2 min ago" / "1 hr ago" into minutes for sorting
-const timestampToMinutes = (t: string): number => {
-  const m = t.match(/(\d+)\s*(min|hr)/);
-  if (!m) return 0;
-  const n = parseInt(m[1], 10);
-  return m[2] === "hr" ? n * 60 : n;
-};
-
 const severityRank = { high: 0, medium: 1, low: 2 } as const;
 
 export default function Activity() {
   const { limits } = usePlan();
+  const { events: allEvents } = useActivity();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "severity">("newest");
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
-
-  // Repeat events for demo pagination
-  const allEvents: ActivityEvent[] = [...activityEvents, ...activityEvents].map((e, i) => ({
-    ...e,
-    id: `${e.id}-${i}`,
-  }));
 
   const filtered = allEvents
     .filter((e) => {
@@ -85,12 +71,14 @@ export default function Activity() {
       return matchStatus && matchSearch;
     })
     .sort((a, b) => {
-      if (sortBy === "oldest") return timestampToMinutes(b.timestamp) - timestampToMinutes(a.timestamp);
+      const aTime = new Date(a.timestamp).getTime();
+      const bTime = new Date(b.timestamp).getTime();
+      if (sortBy === "oldest") return aTime - bTime;
       if (sortBy === "severity") {
         const diff = severityRank[a.severity] - severityRank[b.severity];
-        return diff !== 0 ? diff : timestampToMinutes(a.timestamp) - timestampToMinutes(b.timestamp);
+        return diff !== 0 ? diff : bTime - aTime;
       }
-      return timestampToMinutes(a.timestamp) - timestampToMinutes(b.timestamp);
+      return bTime - aTime;
     });
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -105,11 +93,11 @@ export default function Activity() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-5 animate-fade-in-up">
+      <div className="p-6 space-y-6 animate-fade-in-up">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Activity Log</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Activity Log</h1>
             <p className="text-sm text-muted-foreground mt-0.5">
               Real-time content filtering events across all platforms
             </p>
@@ -136,7 +124,7 @@ export default function Activity() {
                 key={s}
                 onClick={() => { setStatusFilter(s); setPage(1); }}
                 className={cn(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all",
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all",
                   isActive
                     ? "bg-primary text-primary-foreground border-primary shadow-brand-sm"
                     : "bg-card text-muted-foreground border-border hover:border-primary/30 hover:text-foreground"
@@ -158,8 +146,8 @@ export default function Activity() {
         </div>
 
         {/* Search + Filter Row */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1 max-w-xs">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="relative flex-1 w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <Input
               placeholder="Search content, platform, rule..."
@@ -169,7 +157,7 @@ export default function Activity() {
             />
           </div>
           <Select value={sortBy} onValueChange={(v) => { setSortBy(v as typeof sortBy); setPage(1); }}>
-            <SelectTrigger className="h-9 w-36 text-xs">
+            <SelectTrigger className="h-9 w-full sm:w-36 text-xs">
               <Filter className="w-3 h-3 mr-1.5 text-muted-foreground" />
               <SelectValue />
             </SelectTrigger>
@@ -196,7 +184,7 @@ export default function Activity() {
               return (
                 <div
                   key={event.id}
-                  className="rounded-xl border border-border bg-card shadow-brand-sm overflow-hidden transition-all duration-200"
+                  className="rounded-xl border border-border bg-card shadow-brand-sm overflow-hidden transition-all duration-200 hover:shadow-brand-md"
                 >
                   <button
                     className="w-full flex items-start gap-3 p-4 text-left hover:bg-muted/30 transition-colors"
@@ -230,7 +218,7 @@ export default function Activity() {
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-[11px] text-muted-foreground">{event.timestamp}</span>
+                      <span className="text-[11px] text-muted-foreground">{formatRelativeTime(event.timestamp)}</span>
                       <ChevronDown
                         className={cn(
                           "w-3.5 h-3.5 text-muted-foreground transition-transform",
@@ -263,7 +251,7 @@ export default function Activity() {
                           </div>
                           <div>
                             <p className="text-[11px] text-muted-foreground mb-0.5">Time</p>
-                            <p className="text-xs font-semibold text-foreground">{event.timestamp}</p>
+                            <p className="text-xs font-semibold text-foreground">{new Date(event.timestamp).toLocaleString()}</p>
                           </div>
                         </div>
                       </div>
