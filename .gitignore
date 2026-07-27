@@ -1,5 +1,17 @@
+# --- Dependencies and build output ---
+# These were tracked by mistake, which made node_modules 99.5% of the repo
+# (21,380 of 21,475 files). Hosts run their own `npm install` and `npm run
+# build`, so committing them slows deploys and can break builds when a
+# committed binary doesn't match the host's platform.
+node_modules/
+dist/
+.venv/
+
+# --- Editor / logs ---
 .vscode/
 *.log
+
+# --- Secrets (never commit) ---
 .env
 .env.*
 !.env.example
