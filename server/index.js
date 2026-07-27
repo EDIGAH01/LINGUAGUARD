@@ -213,7 +213,10 @@ if (fs.existsSync(DIST_INDEX)) {
   });
 }
 
-const PORT = process.env.MPESA_SERVER_PORT || 4000;
+// PORT is what every managed host (Render, Railway, Fly, Heroku) injects, and
+// binding anything else makes the platform's health check fail even though the
+// app started fine. MPESA_SERVER_PORT stays as the local override.
+const PORT = process.env.PORT || process.env.MPESA_SERVER_PORT || 4000;
 app.listen(PORT, () => {
   console.log(`LinguaGuard backend listening on http://localhost:${PORT}`);
   if (fs.existsSync(DIST_INDEX)) {

@@ -1,0 +1,114 @@
+# Render blueprint — https://render.com/docs/blueprint-spec
+#
+# One web service: Express serves both the API and the built React frontend
+# from a single process, so there is no separate static site to configure.
+#
+# Deploy: push this repo to GitHub, then in Render choose
+# "New +" > "Blueprint" and point it at the repo.
+services:
+  - type: web
+    name: linguaguard
+    runtime: node
+    plan: free
+    # `npm ci` is the reproducible install (uses package-lock.json exactly).
+    # node_modules and dist are intentionally NOT committed, so both are built
+    # here on the host.
+    buildCommand: npm ci && npm run build
+    # Note this is NOT `npm start` — that script rebuilds on every boot, which
+    # wastes time and memory on a restart. The build already happened above.
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+
+    envVars:
+      # ---- Set automatically ----
+      # Render injects PORT itself; server/index.js reads it first.
+      - key: NODE_VERSION
+        value: 22
+      # Generated once by Render and kept stable across deploys. Rotating this
+      # would invalidate every existing session and 2FA secret, since the
+      # at-rest encryption key is derived from it.
+      - key: JWT_SECRET
+        generateValue: true
+
+      # ---- Set these yourself in the Render dashboard ----
+      # sync: false means "prompt me, don't store it in this file". Never put
+      # real credentials in this repo — it is public.
+      - key: ALLOWED_ORIGIN
+        sync: false
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+      # M-Pesa (Safaricom Daraja)
+      - key: MPESA_ENV
+        value: sandbox
+      - key: MPESA_CONSUMER_KEY
+        sync: false
+      - key: MPESA_CONSUMER_SECRET
+        sync: false
+      - key: MPESA_SHORTCODE
+        sync: false
+      - key: MPESA_PASSKEY
+        sync: false
+      # Must point at this service's own public URL once it is live, e.g.
+      # https://linguaguard.onrender.com/api/mpesa/callback
+      - key: MPESA_CALLBACK_URL
+        sync: false
+
+      # Telegram bot (the only platform with real content ingestion)
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_BOT_USERNAME
+        sync: false
+
+      # Email — falls back to a disposable Ethereal inbox if unset
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+
+      # SMS / WhatsApp
+      - key: TERMII_API_KEY
+        sync: false
+      - key: TERMII_SENDER_ID
+        sync: false
+      - key: TERMII_EMAIL_CONFIG_ID
+        sync: false
+      - key: TOPMESSAGE_API_KEY
+        sync: false
+      - key: TOPMESSAGE_SENDER_ID
+        sync: false
+
+      # OAuth — after deploying, register the redirect URIs with each provider:
+      #   https://<your-service>.onrender.com/api/oauth/x/callback
+      #   https://<your-service>.onrender.com/api/oauth/tiktok/callback
+      - key: X_CLIENT_ID
+        sync: false
+      - key: X_CLIENT_SECRET
+        sync: false
+      - key: TIKTOK_CLIENT_KEY
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+
+    # IMPORTANT — data persistence.
+    #
+    # This app stores everything in SQLite at server/database.db. Render's
+    # filesystem is EPHEMERAL: every deploy and every restart wipes it, so all
+    # users, rules, and activity history are lost and a fresh admin is seeded.
+    # That is acceptable for a demo, not for real users.
+    #
+    # A persistent disk fixes it, but disks are not available on the free plan.
+    # To use one: change `plan: free` above to `plan: starter`, then uncomment:
+    #
+    # disk:
+    #   name: linguaguard-data
+    #   mountPath: /opt/render/project/src/server
+    #   sizeGB: 1
