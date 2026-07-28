@@ -25,7 +25,7 @@ router.get("/", (req, res) => {
   res.json({ rules: rules.map(toSafeRule) });
 });
 
-router.post("/", (req, res) => {
+router.post("/", async (req, res) => {
   const { name, category, severity, description, keywords } = req.body || {};
   if (!name || typeof name !== "string" || !name.trim()) {
     return res.status(400).json({ error: "Rule name is required." });
@@ -58,11 +58,11 @@ router.post("/", (req, res) => {
     createdAt: new Date().toISOString(),
   };
   data.filterRules.push(rule);
-  save(data);
+  await save(data);
   res.status(201).json({ rule: toSafeRule(rule) });
 });
 
-router.patch("/:id", (req, res) => {
+router.patch("/:id", async (req, res) => {
   const data = load();
   const rule = data.filterRules.find((r) => r.id === req.params.id && r.userId === req.auth.sub);
   if (!rule) return res.status(404).json({ error: "Rule not found." });
@@ -83,16 +83,16 @@ router.patch("/:id", (req, res) => {
   }
   if (enabled !== undefined) rule.enabled = Boolean(enabled);
 
-  save(data);
+  await save(data);
   res.json({ rule: toSafeRule(rule) });
 });
 
-router.delete("/:id", (req, res) => {
+router.delete("/:id", async (req, res) => {
   const data = load();
   const rule = data.filterRules.find((r) => r.id === req.params.id && r.userId === req.auth.sub);
   if (!rule) return res.status(404).json({ error: "Rule not found." });
   data.filterRules = data.filterRules.filter((r) => r.id !== rule.id);
-  save(data);
+  await save(data);
   res.json({ ok: true });
 });
 

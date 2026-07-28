@@ -5,7 +5,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { initiateStkPush, queryStkStatus } = require("./mpesa");
-const { load, save, ensureSeedAdmin } = require("./db");
+const { initDb, load, save } = require("./db");
 const { requireAuth } = require("./auth");
 const telegram = require("./telegram");
 const { startDigestScheduler } = require("./digest");
@@ -18,15 +18,6 @@ const contentRoutes = require("./routes/content");
 const apiKeyRoutes = require("./routes/apikeys");
 const twoFactorRoutes = require("./routes/twofactor");
 const oauthRoutes = require("./routes/oauth");
-
-ensureSeedAdmin();
-telegram.startPolling();
-startDigestScheduler();
-
-// Establish SMS channel health before serving traffic, so the first
-// password-reset request doesn't have to discover it by attempting a send.
-// Fire-and-forget: a slow provider must not delay startup.
-require("./sms").probeChannelHealth();
 
 const app = express();
 
@@ -92,7 +83,7 @@ app.post("/api/mpesa/stkpush", requireAuth, async (req, res) => {
       status: "pending",
       createdAt: Date.now(),
     });
-    save(data);
+    await save(data);
 
     res.json({
       checkoutRequestId: result.CheckoutRequestID,
@@ -115,7 +106,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", requireAuth, async (req, res) =>
     }
 
     if (String(data.ResultCode) === "0") {
-      grantPendingPlan(req.params.checkoutRequestId, req.auth.sub);
+      await grantPendingPlan(req.params.checkoutRequestId, req.auth.sub);
       return res.json({ status: "success", detail: data.ResultDesc });
     }
 
@@ -135,7 +126,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", requireAuth, async (req, res) =>
  * as a defense-in-depth check that a user can't grant a plan against a
  * checkoutRequestId that isn't theirs.
  */
-function grantPendingPlan(checkoutRequestId, userId) {
+async function grantPendingPlan(checkoutRequestId, userId) {
   const data = load();
   const payment = data.pendingPayments.find(
     (p) =>
@@ -148,17 +139,17 @@ function grantPendingPlan(checkoutRequestId, userId) {
   const user = data.users.find((u) => u.id === payment.userId);
   if (user) user.plan = payment.plan;
   payment.status = "consumed";
-  save(data);
+  await save(data);
 }
 
-function markPendingPaymentFailed(checkoutRequestId) {
+async function markPendingPaymentFailed(checkoutRequestId) {
   const data = load();
   const payment = data.pendingPayments.find(
     (p) => p.checkoutRequestId === checkoutRequestId && p.status === "pending"
   );
   if (!payment) return;
   payment.status = "failed";
-  save(data);
+  await save(data);
 }
 
 /**
@@ -173,7 +164,7 @@ function markPendingPaymentFailed(checkoutRequestId) {
  * this ever firing, so this is a redundant, faster confirmation path, not
  * the only way payments get granted.
  */
-app.post("/api/mpesa/callback", (req, res) => {
+app.post("/api/mpesa/callback", async (req, res) => {
   const stkCallback = req.body?.Body?.stkCallback;
   if (!stkCallback || !stkCallback.CheckoutRequestID) {
     console.warn("[mpesa] callback received with unexpected shape:", JSON.stringify(req.body));
@@ -183,12 +174,12 @@ app.post("/api/mpesa/callback", (req, res) => {
   const { CheckoutRequestID, ResultCode, ResultDesc } = stkCallback;
 
   if (Number(ResultCode) === 0) {
-    grantPendingPlan(CheckoutRequestID);
+    await grantPendingPlan(CheckoutRequestID);
     console.log(`[mpesa] callback confirmed payment for ${CheckoutRequestID} — plan granted.`);
   } else {
     // ResultCode !== 0 covers the user cancelling, entering the wrong PIN,
     // insufficient funds, or timing out — all "did not pay", not an error.
-    markPendingPaymentFailed(CheckoutRequestID);
+    await markPendingPaymentFailed(CheckoutRequestID);
     console.log(`[mpesa] callback reported failure for ${CheckoutRequestID}: ${ResultDesc}`);
   }
 
@@ -217,9 +208,27 @@ if (fs.existsSync(DIST_INDEX)) {
 // binding anything else makes the platform's health check fail even though the
 // app started fine. MPESA_SERVER_PORT stays as the local override.
 const PORT = process.env.PORT || process.env.MPESA_SERVER_PORT || 4000;
-app.listen(PORT, () => {
-  console.log(`LinguaGuard backend listening on http://localhost:${PORT}`);
-  if (fs.existsSync(DIST_INDEX)) {
-    console.log(`[web] Serving the built frontend too — the full app is at http://localhost:${PORT}`);
-  }
-});
+
+// Connect to Postgres, run migrations, and load the cache BEFORE accepting
+// traffic — the seed admin and the whole cache must exist before the first
+// request. Background jobs start only once the data layer is ready. A failure
+// here is fatal: there's nothing to serve without a database.
+initDb()
+  .then(() => {
+    telegram.startPolling();
+    startDigestScheduler();
+    // Establish SMS channel health up front, so the first password-reset
+    // request doesn't discover it by attempting a send. Fire-and-forget.
+    require("./sms").probeChannelHealth();
+
+    app.listen(PORT, () => {
+      console.log(`LinguaGuard backend listening on http://localhost:${PORT}`);
+      if (fs.existsSync(DIST_INDEX)) {
+        console.log(`[web] Serving the built frontend too — the full app is at http://localhost:${PORT}`);
+      }
+    });
+  })
+  .catch((err) => {
+    console.error("[db] Fatal: could not initialize the database:", err.message);
+    process.exit(1);
+  });

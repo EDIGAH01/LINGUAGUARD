@@ -73,7 +73,7 @@ function toSafeUser(u) {
   };
 }
 
-router.post("/signup", signupLimiter, (req, res) => {
+router.post("/signup", signupLimiter, async (req, res) => {
   const { name, email, password } = req.body || {};
 
   if (!name || !EMAIL_RE.test(email || "") || !password || password.length < 8) {
@@ -100,12 +100,12 @@ router.post("/signup", signupLimiter, (req, res) => {
   };
   data.users.push(user);
   const session = createSession(data, user, req);
-  save(data);
+  await save(data);
 
   res.status(201).json({ token: signToken(user, session.id), user: toSafeUser(user) });
 });
 
-router.post("/login", loginLimiter, (req, res) => {
+router.post("/login", loginLimiter, async (req, res) => {
   const { email, password } = req.body || {};
   const data = load();
   const user = data.users.find((u) => u.email.toLowerCase() === (email || "").toLowerCase());
@@ -122,11 +122,11 @@ router.post("/login", loginLimiter, (req, res) => {
   }
 
   const session = createSession(data, user, req);
-  save(data);
+  await save(data);
   res.json({ token: signToken(user, session.id), user: toSafeUser(user) });
 });
 
-router.post("/login/2fa", loginLimiter, (req, res) => {
+router.post("/login/2fa", loginLimiter, async (req, res) => {
   const { pendingToken, code } = req.body || {};
   if (!pendingToken || !code) {
     return res.status(400).json({ error: "pendingToken and code are required." });
@@ -157,21 +157,21 @@ router.post("/login/2fa", loginLimiter, (req, res) => {
   }
 
   const session = createSession(data, user, req);
-  save(data);
+  await save(data);
   res.json({ token: signToken(user, session.id), user: toSafeUser(user) });
 });
 
-router.post("/logout", requireAuth, (req, res) => {
+router.post("/logout", requireAuth, async (req, res) => {
   const data = load();
   const session = data.sessions.find((s) => s.id === req.auth.jti);
   if (session) {
     session.revoked = true;
-    save(data);
+    await save(data);
   }
   res.json({ ok: true });
 });
 
-router.get("/sessions", requireAuth, (req, res) => {
+router.get("/sessions", requireAuth, async (req, res) => {
   const data = load();
   const sessions = data.sessions
     .filter((s) => s.userId === req.auth.sub && !s.revoked)
@@ -180,23 +180,23 @@ router.get("/sessions", requireAuth, (req, res) => {
   res.json({ sessions });
 });
 
-router.delete("/sessions/:id", requireAuth, (req, res) => {
+router.delete("/sessions/:id", requireAuth, async (req, res) => {
   const data = load();
   const session = data.sessions.find((s) => s.id === req.params.id && s.userId === req.auth.sub);
   if (!session) return res.status(404).json({ error: "Session not found." });
   session.revoked = true;
-  save(data);
+  await save(data);
   res.json({ ok: true });
 });
 
-router.get("/me", requireAuth, (req, res) => {
+router.get("/me", requireAuth, async (req, res) => {
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({ user: toSafeUser(user) });
 });
 
-router.patch("/me", requireAuth, (req, res) => {
+router.patch("/me", requireAuth, async (req, res) => {
   const { name, phone } = req.body || {};
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
@@ -204,7 +204,7 @@ router.patch("/me", requireAuth, (req, res) => {
 
   if (typeof name === "string" && name.trim()) user.name = name.trim();
   if (typeof phone === "string") user.phone = phone;
-  save(data);
+  await save(data);
 
   res.json({ user: toSafeUser(user) });
 });
@@ -217,7 +217,7 @@ router.patch("/me", requireAuth, (req, res) => {
  * invalidated; the current tab is handed a fresh token for the same session
  * so changing your password doesn't also log you out of the page you did it from.
  */
-router.post("/change-password", verifyLimiter, requireAuth, (req, res) => {
+router.post("/change-password", verifyLimiter, requireAuth, async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
   if (!currentPassword || !newPassword || newPassword.length < 8) {
     return res.status(400).json({ error: "Current password and a new password of at least 8 characters are required." });
@@ -236,7 +236,7 @@ router.post("/change-password", verifyLimiter, requireAuth, (req, res) => {
   data.sessions
     .filter((s) => s.userId === user.id && s.id !== req.auth.jti)
     .forEach((s) => { s.revoked = true; });
-  save(data);
+  await save(data);
 
   res.json({ token: signToken(user, req.auth.jti), user: toSafeUser(user) });
 });
@@ -250,7 +250,7 @@ const { PLAN_PRIORITY } = require("../plans");
  * not this endpoint, which would otherwise let anyone grant themselves any
  * plan with a single unauthenticated-of-payment API call.
  */
-router.patch("/me/plan", requireAuth, (req, res) => {
+router.patch("/me/plan", requireAuth, async (req, res) => {
   const { plan } = req.body || {};
   if (!["free", "pro", "enterprise"].includes(plan)) {
     return res.status(400).json({ error: "plan must be free, pro, or enterprise" });
@@ -265,7 +265,7 @@ router.patch("/me/plan", requireAuth, (req, res) => {
   }
 
   user.plan = plan;
-  save(data);
+  await save(data);
   res.json({ user: toSafeUser(user) });
 });
 
@@ -325,7 +325,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
 
   const code = crypto.randomInt(100000, 999999).toString();
   user.resetCode = { code, expiresAt: Date.now() + RESET_CODE_TTL_MS, attempts: 0 };
-  save(data);
+  await save(data);
 
   try {
     if (deliveryMethod === "sms") {
@@ -339,7 +339,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
     // Delivery genuinely failed, so the code in the DB was never received by
     // anyone — drop it rather than leaving a live credential nobody can use.
     delete user.resetCode;
-    save(data);
+    await save(data);
 
     // Still the generic response here, on purpose. By this point we've already
     // confirmed the account exists (and, for SMS, that the phone matches), so
@@ -352,7 +352,7 @@ router.post("/forgot-password", forgotPasswordLimiter, async (req, res) => {
   res.json(generic);
 });
 
-router.post("/reset-password", verifyLimiter, (req, res) => {
+router.post("/reset-password", verifyLimiter, async (req, res) => {
   const { email, code, newPassword } = req.body || {};
 
   if (!EMAIL_RE.test(email || "") || !code || !newPassword || newPassword.length < 8) {
@@ -369,19 +369,19 @@ router.post("/reset-password", verifyLimiter, (req, res) => {
 
   if (Date.now() > user.resetCode.expiresAt) {
     delete user.resetCode;
-    save(data);
+    await save(data);
     return res.status(400).json({ error: "This code has expired. Request a new one." });
   }
 
   if (user.resetCode.attempts >= RESET_MAX_ATTEMPTS) {
     delete user.resetCode;
-    save(data);
+    await save(data);
     return res.status(400).json({ error: "Too many incorrect attempts. Request a new code." });
   }
 
   if (user.resetCode.code !== code) {
     user.resetCode.attempts += 1;
-    save(data);
+    await save(data);
     return res.status(400).json({ error: "Incorrect code." });
   }
 
@@ -389,7 +389,7 @@ router.post("/reset-password", verifyLimiter, (req, res) => {
   user.tokenVersion = (user.tokenVersion || 0) + 1; // invalidate any already-issued sessions
   data.sessions.filter((s) => s.userId === user.id).forEach((s) => { s.revoked = true; });
   delete user.resetCode;
-  save(data);
+  await save(data);
 
   res.json({ ok: true });
 });

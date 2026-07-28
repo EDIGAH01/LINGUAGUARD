@@ -16,14 +16,14 @@ router.use(requireAuth);
  * messages — is what has to honor them when deciding whether to send a real
  * email/SMS alert.
  */
-router.get("/prefs", (req, res) => {
+router.get("/prefs", async (req, res) => {
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({ prefs: getPrefs(user) });
 });
 
-router.patch("/prefs", (req, res) => {
+router.patch("/prefs", async (req, res) => {
   const body = req.body || {};
   const validKeys = Object.keys(DEFAULT_PREFS);
   const updates = {};
@@ -38,7 +38,7 @@ router.patch("/prefs", (req, res) => {
   if (!user) return res.status(404).json({ error: "User not found" });
 
   user.notificationPrefs = { ...getPrefs(user), ...updates };
-  save(data);
+  await save(data);
   res.json({ prefs: getPrefs(user) });
 });
 
