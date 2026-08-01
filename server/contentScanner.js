@@ -59,7 +59,7 @@ async function scanAndRecord(data, { userId, platformId, platformName, sender, c
   if (ai && ai.flagged && STATUS_RANK.flagged > STATUS_RANK[status]) {
     status = "flagged";
     category = ai.category;
-    ruleMatched = `AI moderation: ${ai.openaiCategory}`;
+    ruleMatched = `AI moderation (${ai.provider}): ${ai.detail}`;
     severity = "medium";
   }
 

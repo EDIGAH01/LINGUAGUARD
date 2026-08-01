@@ -97,11 +97,21 @@ services:
         sync: false
       - key: TIKTOK_CLIENT_SECRET
         sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
+      - key: INSTAGRAM_APP_ID
+        sync: false
+      - key: INSTAGRAM_APP_SECRET
+        sync: false
 
-      # Optional AI moderation layer (OpenAI Moderations API). Leave unset to
-      # run keyword-only; set it to enable AI-assisted scanning. Requires a
-      # funded OpenAI account.
+      # Optional AI moderation layer. Set either or both to enable AI-assisted
+      # scanning on top of keyword rules (OpenAI is tried first, then Gemini).
+      # Leave unset to run keyword-only.
       - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
         sync: false
 
     # IMPORTANT — data persistence.

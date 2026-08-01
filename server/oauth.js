@@ -104,6 +104,50 @@ const PROVIDERS = {
       return { externalId: data.user.open_id, username: data.user.username, displayName: data.user.display_name };
     },
   },
+  youtube: {
+    label: "YouTube",
+    // Standard Google OAuth 2.0. Google supports PKCE for web-app clients, so
+    // we keep the code_challenge (unlike Meta).
+    authorizeUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+    tokenUrl: "https://oauth2.googleapis.com/token",
+    clientIdEnv: "YOUTUBE_CLIENT_ID",
+    clientSecretEnv: "YOUTUBE_CLIENT_SECRET",
+    // readonly → read the channel, its videos and comment threads.
+    // force-ssl → additionally hold/remove comments (real moderation actions).
+    scope:
+      "https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl",
+    clientIdParam: "client_id",
+    tokenAuthStyle: "body",
+    // Google only returns a refresh_token when asked with access_type=offline,
+    // and only reliably re-issues one with prompt=consent — neither is part of
+    // the base authorize params, so they're merged in via extraAuthParams.
+    extraAuthParams: { access_type: "offline", prompt: "consent", include_granted_scopes: "true" },
+    async fetchProfile(accessToken) {
+      // The connected user's own YouTube channel.
+      const res = await fetch(
+        "https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const channel = data.items?.[0];
+        if (channel) {
+          return {
+            externalId: channel.id,
+            username: channel.snippet?.customUrl || channel.snippet?.title,
+            displayName: channel.snippet?.title,
+          };
+        }
+      }
+      // A Google account without a YouTube channel — fall back to basic profile.
+      const me = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!me.ok) throw new Error(`profile fetch failed: HTTP ${res.status}`);
+      const info = await me.json();
+      return { externalId: info.id, username: info.email, displayName: info.name || info.email };
+    },
+  },
 };
 
 function isConfigured(provider) {
@@ -145,6 +189,12 @@ function startAuth(provider, userId, redirectUri) {
   if (!p.noPkce) {
     params.set("code_challenge", codeChallenge);
     params.set("code_challenge_method", "S256");
+  }
+
+  // Provider-specific authorize params (e.g. Google's access_type=offline /
+  // prompt=consent, needed to actually receive a refresh_token).
+  if (p.extraAuthParams) {
+    for (const [k, v] of Object.entries(p.extraAuthParams)) params.set(k, v);
   }
 
   return `${p.authorizeUrl}?${params.toString()}`;
