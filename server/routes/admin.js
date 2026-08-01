@@ -7,12 +7,12 @@ const router = express.Router();
 
 router.use(requireAuth, requireAdmin);
 
-router.get("/users", async (req, res) => {
+router.get("/users", (req, res) => {
   const data = load();
   res.json({ users: data.users.map(toSafeUser) });
 });
 
-router.patch("/users/:id", async (req, res) => {
+router.patch("/users/:id", (req, res) => {
   const { role, plan, status, name } = req.body || {};
   const data = load();
   const user = data.users.find((u) => u.id === req.params.id);
@@ -54,11 +54,11 @@ router.patch("/users/:id", async (req, res) => {
 
   if (typeof name === "string" && name.trim()) user.name = name.trim();
 
-  await save(data);
+  save(data);
   res.json({ user: toSafeUser(user) });
 });
 
-router.delete("/users/:id", async (req, res) => {
+router.delete("/users/:id", (req, res) => {
   if (req.params.id === req.auth.sub) {
     return res.status(400).json({ error: "You can't delete your own account." });
   }
@@ -79,12 +79,12 @@ router.delete("/users/:id", async (req, res) => {
   data.sessions = data.sessions.filter(gone);
   data.filterRules = data.filterRules.filter(gone);
   data.activityEvents = data.activityEvents.filter(gone);
-  await save(data);
+  save(data);
 
   res.json({ ok: true });
 });
 
-router.get("/stats", async (req, res) => {
+router.get("/stats", (req, res) => {
   const data = load();
   const byPlan = { free: 0, pro: 0, enterprise: 0 };
   const byRole = { user: 0, admin: 0 };

@@ -10,6 +10,62 @@ const STATE_TTL_MS = 10 * 60 * 1000;
  * useless without the verifier that only this server ever holds.
  */
 const PROVIDERS = {
+  instagram: {
+    label: "Instagram",
+    // Meta's OAuth 2.0 dialog. Instagram Basic Display API was deprecated in
+    // Dec 2024; the current path is Facebook Login for Business / Instagram
+    // Graph API, which uses the same authorize endpoint as Facebook but with
+    // instagram_basic + instagram_manage_comments scopes.
+    authorizeUrl: "https://www.facebook.com/v21.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
+    clientIdEnv: "INSTAGRAM_APP_ID",
+    clientSecretEnv: "INSTAGRAM_APP_SECRET",
+    // instagram_basic → read profile/media
+    // pages_show_list + instagram_manage_comments → comment moderation
+    // (requires Business/Creator account linked to a Facebook Page)
+    scope: "instagram_basic,instagram_manage_comments,pages_show_list",
+    clientIdParam: "client_id",
+    // Meta expects client_id + client_secret as query params on the token URL,
+    // NOT as HTTP Basic auth.
+    tokenAuthStyle: "body",
+    // Meta's token endpoint uses GET (not POST) — flag it so exchangeCode
+    // can handle it correctly.
+    tokenMethod: "GET",
+    // Meta's OAuth 2.0 does not support PKCE — skip code_challenge params.
+    noPkce: true,
+    async fetchProfile(accessToken) {
+      // Get the Instagram Business/Creator account linked to this token.
+      // First get the Facebook user's pages, then find the IG account on each.
+      const meRes = await fetch(
+        `https://graph.facebook.com/v21.0/me/accounts?fields=name,instagram_business_account{id,name,username}&access_token=${accessToken}`
+      );
+      if (!meRes.ok) {
+        // Fallback: just get the Facebook user display name
+        const fbMe = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${accessToken}`);
+        if (!fbMe.ok) throw new Error(`profile fetch failed: HTTP ${meRes.status}`);
+        const fb = await fbMe.json();
+        return { externalId: fb.id, username: fb.name, displayName: fb.name };
+      }
+      const pagesData = await meRes.json();
+      // Find first page with a linked IG business account
+      const pageWithIg = pagesData.data?.find(p => p.instagram_business_account);
+      if (pageWithIg) {
+        const ig = pageWithIg.instagram_business_account;
+        return {
+          externalId: ig.id,
+          username: ig.username || ig.name,
+          displayName: ig.name || ig.username,
+        };
+      }
+      // Fallback: use the Facebook page name itself
+      const page = pagesData.data?.[0];
+      if (page) return { externalId: page.id, username: page.name, displayName: page.name };
+      // Last resort: basic /me
+      const fbMe2 = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${accessToken}`);
+      const fb2 = await fbMe2.json();
+      return { externalId: fb2.id, username: fb2.name, displayName: fb2.name };
+    },
+  },
   x: {
     label: "X",
     authorizeUrl: "https://x.com/i/oauth2/authorize",
@@ -82,9 +138,14 @@ function startAuth(provider, userId, redirectUri) {
     redirect_uri: redirectUri,
     scope: p.scope,
     state,
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
   });
+
+  // PKCE is not supported by Meta's OAuth 2.0 implementation — only add
+  // code_challenge for providers that explicitly support it.
+  if (!p.noPkce) {
+    params.set("code_challenge", codeChallenge);
+    params.set("code_challenge_method", "S256");
+  }
 
   return `${p.authorizeUrl}?${params.toString()}`;
 }
@@ -93,6 +154,11 @@ function startAuth(provider, userId, redirectUri) {
 function consumeState(state) {
   const raw = getKv(`oauth_state_${state}`);
   if (!raw) return null;
+  // Delete the key by overwriting with a sentinel that won't JSON.parse as a
+  // valid context object. Using a dedicated delete via setKv is not possible
+  // (kv_store has no DELETE helper), so an empty string acts as a tombstone —
+  // but we must guard against re-reading it here, which is why we check !raw
+  // above: an empty string is falsy, so a tombstoned key is correctly rejected.
   setKv(`oauth_state_${state}`, ""); // one-time use, mirrors phone/reset code consumption elsewhere
   const parsed = JSON.parse(raw);
   if (Date.now() - parsed.createdAt > STATE_TTL_MS) return null;
@@ -101,6 +167,24 @@ function consumeState(state) {
 
 async function exchangeCode(provider, code, codeVerifier, redirectUri) {
   const p = PROVIDERS[provider];
+
+  // Meta's token endpoint is a GET with query params, not a POST body.
+  // Everything else uses POST + URL-encoded body.
+  if (p.tokenMethod === "GET") {
+    const params = new URLSearchParams({
+      client_id: process.env[p.clientIdEnv],
+      client_secret: process.env[p.clientSecretEnv],
+      redirect_uri: redirectUri,
+      code,
+    });
+    const res = await fetch(`${p.tokenUrl}?${params.toString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error?.message || data.error_description || data.error || `token exchange failed: HTTP ${res.status}`);
+    }
+    return data;
+  }
+
   const body = new URLSearchParams({
     grant_type: "authorization_code",
     code,

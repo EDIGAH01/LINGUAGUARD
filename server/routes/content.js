@@ -13,7 +13,7 @@ router.use(requireAuth);
  * and the Telegram path share one evaluation engine rather than two that
  * could drift apart.
  */
-router.post("/scan", async (req, res) => {
+router.post("/scan", (req, res) => {
   const { platformId, platformName, sender, content } = req.body || {};
   if (!content || typeof content !== "string" || !content.trim()) {
     return res.status(400).json({ error: "content is required." });
@@ -21,7 +21,7 @@ router.post("/scan", async (req, res) => {
 
   const data = load();
   const { event, matchedRule } = scanAndRecord(data, { userId: req.auth.sub, platformId, platformName, sender, content });
-  await save(data);
+  save(data);
 
   const user = data.users.find((u) => u.id === req.auth.sub);
   dispatchAlerts(user, event);
@@ -29,7 +29,7 @@ router.post("/scan", async (req, res) => {
   res.status(201).json({ event, matchedRule });
 });
 
-router.get("/activity", async (req, res) => {
+router.get("/activity", (req, res) => {
   const data = load();
   const events = data.activityEvents
     .filter((e) => e.userId === req.auth.sub)
@@ -37,7 +37,7 @@ router.get("/activity", async (req, res) => {
   res.json({ events });
 });
 
-router.get("/stats", async (req, res) => {
+router.get("/stats", (req, res) => {
   const data = load();
   const events = data.activityEvents.filter((e) => e.userId === req.auth.sub);
 

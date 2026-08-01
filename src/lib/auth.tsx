@@ -97,8 +97,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     refreshUser().finally(() => setLoading(false));
+  }, []);
+
+  /**
+   * Poll /api/auth/me every 30 s while the tab is visible so that
+   * server-side changes (admin plan/role/status updates, bans) propagate
+   * to this session without requiring a manual page refresh.
+   *
+   * Only runs when the document is visible — pauses in background tabs to
+   * avoid unnecessary server load, and resumes immediately on tab focus so
+   * the first thing a returning user sees is their current account state.
+   */
+  useEffect(() => {
+    // Don't start polling until the initial load resolves — the loading
+    // state setter in the effect above must run first.
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (interval) return;
+      interval = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          refreshUser();
+        }
+      }, 30_000);
+    };
+
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // Resume immediately when the tab regains focus so an admin change
+    // made while this tab was in the background reflects right away.
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshUser();
+        start();
+      } else {
+        stop();
+      }
+    };
+
+    start();
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email: string, password: string) => {

@@ -10,7 +10,6 @@
     "start": "npm run build && node server/index.js",
     "build": "vite build",
     "preview": "vite preview",
-    "migrate:sqlite-to-postgres": "node server/scripts/sqlite-to-postgres.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -66,7 +65,6 @@
     "next-themes": "^0.4.6",
     "nodemailer": "^9.0.3",
     "otplib": "^12.0.1",
-    "pg": "^8.22.0",
     "qrcode": "^1.5.4",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",

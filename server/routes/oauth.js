@@ -14,7 +14,7 @@ function redirectUriFor(req, provider) {
   return `${req.protocol}://${req.get("host")}/api/oauth/${provider}/callback`;
 }
 
-router.get("/:provider/start", requireAuth, async (req, res) => {
+router.get("/:provider/start", requireAuth, (req, res) => {
   const { provider } = req.params;
   if (!PROVIDERS[provider]) return res.status(404).json({ error: "Unknown platform." });
   try {
@@ -25,21 +25,21 @@ router.get("/:provider/start", requireAuth, async (req, res) => {
   }
 });
 
-router.get("/:provider/status", requireAuth, async (req, res) => {
+router.get("/:provider/status", requireAuth, (req, res) => {
   const { provider } = req.params;
   const data = load();
   const conn = data.platformConnections.find((c) => c.userId === req.auth.sub && c.provider === provider);
   res.json(conn ? { connected: true, username: conn.username, displayName: conn.displayName } : { connected: false });
 });
 
-router.delete("/:provider", requireAuth, async (req, res) => {
+router.delete("/:provider", requireAuth, (req, res) => {
   const { provider } = req.params;
   const data = load();
   const before = data.platformConnections.length;
   data.platformConnections = data.platformConnections.filter(
     (c) => !(c.userId === req.auth.sub && c.provider === provider)
   );
-  if (data.platformConnections.length !== before) await save(data);
+  if (data.platformConnections.length !== before) save(data);
   res.json({ ok: true });
 });
 
@@ -102,7 +102,7 @@ router.get("/:provider/callback", async (req, res) => {
       expiresAt: tokens.expires_in ? Date.now() + tokens.expires_in * 1000 : null,
       connectedAt: new Date().toISOString(),
     });
-    await save(data);
+    save(data);
 
     res.send(callbackPage(`${label} connected!`, `LinguaGuard is now connected as ${profile.displayName}.`));
   } catch (err) {

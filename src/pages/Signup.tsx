@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Eye, EyeOff, ShieldCheck } from "lucide-react";
+import { Loader2, ShieldCheck } from "lucide-react";
 import { Logo3D } from "@/components/Logo3D";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 import { useAuth } from "@/lib/auth";
+import { User, Mail, Lock } from "lucide-react";
 
 export default function Signup() {
   const { signup, user } = useAuth();
@@ -14,8 +13,6 @@ export default function Signup() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -51,8 +48,7 @@ export default function Signup() {
 
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[1.1fr_1fr]">
-      {/* Mirrors the Login brand panel so the two auth pages read as one
-          product. Previously each page had its own unrelated purple gradient. */}
+      {/* Brand panel — mirrors Login exactly */}
       <aside className="relative hidden lg:flex flex-col justify-between overflow-hidden border-r border-sidebar-border bg-sidebar-background p-12">
         <div aria-hidden className="pointer-events-none absolute -left-24 -top-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
         <div aria-hidden className="pointer-events-none absolute -bottom-32 -right-16 h-96 w-96 rounded-full bg-accent-foreground/10 blur-3xl" />
@@ -92,9 +88,16 @@ export default function Signup() {
           </ul>
         </div>
 
-        <p className="relative text-[11px] text-sidebar-foreground/50">
-          Encrypted in transit · Two-factor ready · Session-level access control
-        </p>
+        <div className="relative space-y-2">
+          <p className="text-[11px] text-sidebar-foreground/50">
+            Encrypted in transit · Two-factor ready · Session-level access control
+          </p>
+          <p className="text-[11px] text-sidebar-foreground/40">
+            <Link to="/terms" className="transition-colors hover:text-sidebar-foreground/70">Terms of Service</Link>
+            <span className="mx-2">·</span>
+            <Link to="/privacy" className="transition-colors hover:text-sidebar-foreground/70">Privacy Policy</Link>
+          </p>
+        </div>
       </aside>
 
       <main className="flex min-h-screen flex-col items-center justify-center overflow-y-auto bg-background px-6 py-10">
@@ -109,91 +112,73 @@ export default function Signup() {
               Set up your LinguaGuard workspace. It takes about a minute.
             </p>
           </div>
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Full name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="email"
-                required
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  className="pr-9"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="confirm">Confirm password</Label>
-              <div className="relative">
-                <Input
-                  id="confirm"
-                  type={showConfirm ? "text" : "password"}
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  autoComplete="new-password"
-                  className="pr-9"
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                  aria-label={showConfirm ? "Hide password" : "Show password"}
-                >
-                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
+
+          <form className="space-y-3" onSubmit={handleSubmit}>
+            <FloatingLabelInput
+              id="name"
+              label="Full name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              icon={User}
+              required
+            />
+            <FloatingLabelInput
+              id="email"
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              icon={Mail}
+              required
+            />
+            <FloatingLabelInput
+              id="password"
+              label="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+              revealable
+              icon={Lock}
+              required
+            />
+            <FloatingLabelInput
+              id="confirm"
+              label="Confirm password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              autoComplete="new-password"
+              revealable
+              icon={Lock}
+              required
+            />
+
             {error && (
               <p role="alert" className="text-xs rounded-lg border border-danger/25 bg-danger-subtle px-3 py-2.5 text-danger">
                 {error}
               </p>
             )}
-            <Button type="submit" className="w-full h-11" disabled={submitting}>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-11 mt-5 rounded-lg bg-primary text-primary-foreground font-semibold text-sm hover:bg-primary/90 transition-colors disabled:opacity-60 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {submitting ? "Creating account…" : "Create account"}
-            </Button>
+            </button>
           </form>
+
           <p className="mt-5 text-center text-[11px] leading-relaxed text-muted-foreground">
             By creating an account you agree to our{" "}
-            <Link to="/terms" className="text-primary hover:underline">
-              Terms of Service
-            </Link>{" "}
+            <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
             and{" "}
-            <Link to="/privacy" className="text-primary hover:underline">
-              Privacy Policy
-            </Link>
-            .
+            <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
           </p>
           <p className="text-sm text-muted-foreground text-center mt-6">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary font-medium hover:underline">
-              Sign in
-            </Link>
+            <Link to="/login" className="text-primary font-medium hover:underline">Sign in</Link>
           </p>
         </div>
       </main>

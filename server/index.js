@@ -5,7 +5,8 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const { initiateStkPush, queryStkStatus } = require("./mpesa");
-const { initDb, load, save } = require("./db");
+const db = require("./db");
+const { load, save, ensureSeedAdmin } = db;
 const { requireAuth } = require("./auth");
 const telegram = require("./telegram");
 const { startDigestScheduler } = require("./digest");
@@ -18,6 +19,11 @@ const contentRoutes = require("./routes/content");
 const apiKeyRoutes = require("./routes/apikeys");
 const twoFactorRoutes = require("./routes/twofactor");
 const oauthRoutes = require("./routes/oauth");
+
+// Deferred to the async startup below — the Postgres backend must finish
+// hydrating (initDb) before anything reads the store via ensureSeedAdmin or a
+// request handler. SQLite makes initDb a no-op, so this ordering is harmless
+// there and required here.
 
 const app = express();
 
@@ -75,15 +81,24 @@ app.post("/api/mpesa/stkpush", requireAuth, async (req, res) => {
     // Recorded so /api/mpesa/status can verify — before this payment existed,
     // *any* authenticated user could grant themselves any plan by calling
     // PATCH /api/auth/me/plan directly, with no real payment behind it at all.
-    const data = load();
-    data.pendingPayments.push({
-      checkoutRequestId: result.CheckoutRequestID,
-      userId: req.auth.sub,
-      plan,
-      status: "pending",
-      createdAt: Date.now(),
-    });
-    await save(data);
+    try {
+      const data = load();
+      data.pendingPayments.push({
+        checkoutRequestId: result.CheckoutRequestID,
+        userId: req.auth.sub,
+        plan,
+        status: "pending",
+        createdAt: Date.now(),
+      });
+      save(data);
+    } catch (dbErr) {
+      // The STK push already left Safaricom's servers — we can't un-ring that
+      // bell. Log the failure so it can be reconciled manually; the callback
+      // path won't be able to grant the plan either (no pending record), so
+      // the user will need to contact support if they actually paid.
+      console.error("[mpesa] failed to record pending payment after STK push:", dbErr.message);
+      return res.status(500).json({ error: "Payment initiated but could not be recorded. Please contact support with your CheckoutRequestID: " + result.CheckoutRequestID });
+    }
 
     res.json({
       checkoutRequestId: result.CheckoutRequestID,
@@ -106,7 +121,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", requireAuth, async (req, res) =>
     }
 
     if (String(data.ResultCode) === "0") {
-      await grantPendingPlan(req.params.checkoutRequestId, req.auth.sub);
+      grantPendingPlan(req.params.checkoutRequestId, req.auth.sub);
       return res.json({ status: "success", detail: data.ResultDesc });
     }
 
@@ -126,7 +141,7 @@ app.get("/api/mpesa/status/:checkoutRequestId", requireAuth, async (req, res) =>
  * as a defense-in-depth check that a user can't grant a plan against a
  * checkoutRequestId that isn't theirs.
  */
-async function grantPendingPlan(checkoutRequestId, userId) {
+function grantPendingPlan(checkoutRequestId, userId) {
   const data = load();
   const payment = data.pendingPayments.find(
     (p) =>
@@ -139,17 +154,17 @@ async function grantPendingPlan(checkoutRequestId, userId) {
   const user = data.users.find((u) => u.id === payment.userId);
   if (user) user.plan = payment.plan;
   payment.status = "consumed";
-  await save(data);
+  save(data);
 }
 
-async function markPendingPaymentFailed(checkoutRequestId) {
+function markPendingPaymentFailed(checkoutRequestId) {
   const data = load();
   const payment = data.pendingPayments.find(
     (p) => p.checkoutRequestId === checkoutRequestId && p.status === "pending"
   );
   if (!payment) return;
   payment.status = "failed";
-  await save(data);
+  save(data);
 }
 
 /**
@@ -164,7 +179,7 @@ async function markPendingPaymentFailed(checkoutRequestId) {
  * this ever firing, so this is a redundant, faster confirmation path, not
  * the only way payments get granted.
  */
-app.post("/api/mpesa/callback", async (req, res) => {
+app.post("/api/mpesa/callback", (req, res) => {
   const stkCallback = req.body?.Body?.stkCallback;
   if (!stkCallback || !stkCallback.CheckoutRequestID) {
     console.warn("[mpesa] callback received with unexpected shape:", JSON.stringify(req.body));
@@ -174,12 +189,12 @@ app.post("/api/mpesa/callback", async (req, res) => {
   const { CheckoutRequestID, ResultCode, ResultDesc } = stkCallback;
 
   if (Number(ResultCode) === 0) {
-    await grantPendingPlan(CheckoutRequestID);
+    grantPendingPlan(CheckoutRequestID);
     console.log(`[mpesa] callback confirmed payment for ${CheckoutRequestID} — plan granted.`);
   } else {
     // ResultCode !== 0 covers the user cancelling, entering the wrong PIN,
     // insufficient funds, or timing out — all "did not pay", not an error.
-    await markPendingPaymentFailed(CheckoutRequestID);
+    markPendingPaymentFailed(CheckoutRequestID);
     console.log(`[mpesa] callback reported failure for ${CheckoutRequestID}: ${ResultDesc}`);
   }
 
@@ -209,26 +224,48 @@ if (fs.existsSync(DIST_INDEX)) {
 // app started fine. MPESA_SERVER_PORT stays as the local override.
 const PORT = process.env.PORT || process.env.MPESA_SERVER_PORT || 4000;
 
-// Connect to Postgres, run migrations, and load the cache BEFORE accepting
-// traffic — the seed admin and the whole cache must exist before the first
-// request. Background jobs start only once the data layer is ready. A failure
-// here is fatal: there's nothing to serve without a database.
-initDb()
-  .then(() => {
-    telegram.startPolling();
-    startDigestScheduler();
-    // Establish SMS channel health up front, so the first password-reset
-    // request doesn't discover it by attempting a send. Fire-and-forget.
-    require("./sms").probeChannelHealth();
+/**
+ * Async startup: the Postgres backend has to finish hydrating before we seed
+ * the admin, start the pollers, or accept a single request — otherwise the
+ * first read would hit an empty in-memory store. SQLite's initDb is a no-op,
+ * so the same ordering works for local dev unchanged.
+ */
+async function start() {
+  await db.initDb();
 
-    app.listen(PORT, () => {
-      console.log(`LinguaGuard backend listening on http://localhost:${PORT}`);
-      if (fs.existsSync(DIST_INDEX)) {
-        console.log(`[web] Serving the built frontend too — the full app is at http://localhost:${PORT}`);
-      }
-    });
-  })
-  .catch((err) => {
-    console.error("[db] Fatal: could not initialize the database:", err.message);
-    process.exit(1);
+  ensureSeedAdmin();
+  telegram.startPolling();
+  startDigestScheduler();
+  // Fire-and-forget: a slow SMS provider must not delay startup.
+  require("./sms").probeChannelHealth();
+
+  app.listen(PORT, () => {
+    console.log(`LinguaGuard backend listening on http://localhost:${PORT}`);
+    if (fs.existsSync(DIST_INDEX)) {
+      console.log(`[web] Serving the built frontend too — the full app is at http://localhost:${PORT}`);
+    }
   });
+}
+
+// Persist any queued write before the process exits. Render sends SIGTERM
+// ahead of a deploy, so this is the graceful window that closes the
+// write-through durability gap for the Postgres backend.
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`[server] ${signal} received — flushing pending writes…`);
+  try {
+    await db.flush();
+  } catch (err) {
+    console.error("[server] flush on shutdown failed:", err.message);
+  }
+  process.exit(0);
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
+
+start().catch((err) => {
+  console.error("[server] failed to start:", err);
+  process.exit(1);
+});

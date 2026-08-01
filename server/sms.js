@@ -170,6 +170,9 @@ async function sendWhatsApp(phone, message) {
       console.warn(`[sms] WhatsApp channel failed (${err.message}) — falling back to SMS.`);
     }
   }
+  // Must return here so the caller gets the promise from sendSms and can
+  // await/catch it — without the return the caller receives undefined and
+  // any rejection from sendSms becomes an unhandled promise rejection.
   return sendSms(phone, message);
 }
 

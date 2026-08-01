@@ -1,10 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
-import { Menu } from "lucide-react";
+import { Menu, Settings } from "lucide-react";
 import { Logo3D } from "@/components/Logo3D";
 
 interface AppLayoutProps {
@@ -40,6 +41,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           </div>
           <div className="flex-1" />
           <ThemeToggle />
+          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" asChild aria-label="Settings">
+            <Link to="/settings">
+              <Settings className="h-4 w-4" />
+            </Link>
+          </Button>
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>

@@ -22,32 +22,32 @@ const PHONE_MAX_ATTEMPTS = 5;
 // only the account owner can start. Those stay as the existing simulated
 // demo flow in the frontend until real credentials are supplied.
 
-router.get("/telegram/status", async (req, res) => {
+router.get("/telegram/status", (req, res) => {
   res.json(telegram.getStatus(req.auth.sub));
 });
 
-router.post("/telegram/start", async (req, res) => {
+router.post("/telegram/start", (req, res) => {
   if (!telegram.isConfigured()) {
     return res.status(501).json({
       error:
         "Telegram isn't configured on this server yet. Create a bot via @BotFather and set TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME in .env.",
     });
   }
-  res.json(await telegram.startVerification(req.auth.sub));
+  res.json(telegram.startVerification(req.auth.sub));
 });
 
-router.get("/telegram/groups", async (req, res) => {
+router.get("/telegram/groups", (req, res) => {
   res.json({ groups: telegram.getGroupLinks(req.auth.sub) });
 });
 
-router.post("/telegram/group/start", async (req, res) => {
+router.post("/telegram/group/start", (req, res) => {
   if (!telegram.isConfigured()) {
     return res.status(501).json({
       error:
         "Telegram isn't configured on this server yet. Create a bot via @BotFather and set TELEGRAM_BOT_TOKEN / TELEGRAM_BOT_USERNAME in .env.",
     });
   }
-  res.json(await telegram.startGroupVerification(req.auth.sub));
+  res.json(telegram.startGroupVerification(req.auth.sub));
 });
 
 /**
@@ -83,7 +83,7 @@ router.post("/phone/start", forgotPasswordLimiter, async (req, res) => {
     expiresAt: Date.now() + PHONE_CODE_TTL_MS,
     attempts: 0,
   });
-  await save(data);
+  save(data);
 
   try {
     // The WhatsApp platform's code goes over WhatsApp itself (Termii
@@ -99,7 +99,7 @@ router.post("/phone/start", forgotPasswordLimiter, async (req, res) => {
   res.json({ message: `Verification code sent to ${phone}.` });
 });
 
-router.post("/phone/verify", verifyLimiter, async (req, res) => {
+router.post("/phone/verify", verifyLimiter, (req, res) => {
   const { platformId, phone, code } = req.body || {};
   if (!platformId || !phone || !code) {
     return res.status(400).json({ error: "platformId, phone, and code are required" });
@@ -121,24 +121,24 @@ router.post("/phone/verify", verifyLimiter, async (req, res) => {
 
   if (Date.now() > entry.expiresAt) {
     data.phoneVerifications = data.phoneVerifications.filter((v) => v !== entry);
-    await save(data);
+    save(data);
     return res.status(400).json({ error: "This code has expired. Request a new one." });
   }
 
   if (entry.attempts >= PHONE_MAX_ATTEMPTS) {
     data.phoneVerifications = data.phoneVerifications.filter((v) => v !== entry);
-    await save(data);
+    save(data);
     return res.status(400).json({ error: "Too many incorrect attempts. Request a new code." });
   }
 
   if (entry.code !== code) {
     entry.attempts += 1;
-    await save(data);
+    save(data);
     return res.status(400).json({ error: "Incorrect code." });
   }
 
   data.phoneVerifications = data.phoneVerifications.filter((v) => v !== entry);
-  await save(data);
+  save(data);
   res.json({ ok: true });
 });
 

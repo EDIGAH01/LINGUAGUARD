@@ -14,7 +14,7 @@ router.use(requireAuth);
  * authenticator app actually has it (otherwise a bad scan/typo could lock
  * them out with a "working" secret nobody can actually generate codes from).
  */
-router.post("/setup", async (req, res) => {
+router.post("/setup", (req, res) => {
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -22,7 +22,7 @@ router.post("/setup", async (req, res) => {
 
   const secret = authenticator.generateSecret();
   user.twoFactorPendingSecret = encryptSecret(secret);
-  await save(data);
+  save(data);
 
   const otpauth = authenticator.keyuri(user.email, "LinguaGuard", secret);
   qrcode.toDataURL(otpauth, (err, qrDataUrl) => {
@@ -31,7 +31,7 @@ router.post("/setup", async (req, res) => {
   });
 });
 
-router.post("/confirm", verifyLimiter, async (req, res) => {
+router.post("/confirm", verifyLimiter, (req, res) => {
   const { code } = req.body || {};
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
@@ -48,12 +48,12 @@ router.post("/confirm", verifyLimiter, async (req, res) => {
   user.twoFactorSecret = user.twoFactorPendingSecret;
   user.twoFactorEnabled = true;
   delete user.twoFactorPendingSecret;
-  await save(data);
+  save(data);
 
   res.json({ ok: true });
 });
 
-router.post("/disable", verifyLimiter, async (req, res) => {
+router.post("/disable", verifyLimiter, (req, res) => {
   const { code } = req.body || {};
   const data = load();
   const user = data.users.find((u) => u.id === req.auth.sub);
@@ -68,7 +68,7 @@ router.post("/disable", verifyLimiter, async (req, res) => {
   user.twoFactorEnabled = false;
   delete user.twoFactorSecret;
   delete user.twoFactorPendingSecret;
-  await save(data);
+  save(data);
 
   res.json({ ok: true });
 });

@@ -50,7 +50,7 @@ function scanAndRecord(data, { userId, platformId, platformName, sender, content
     ruleMatched: rule ? rule.name : "—",
     category: rule ? rule.category : "custom",
     severity: rule ? rule.severity : "low",
-    sender: sender || "Test input",
+    sender: (sender || "Test input").trim().slice(0, 200),
     timestamp: new Date().toISOString(),
   };
   data.activityEvents.push(event);

@@ -24,13 +24,6 @@ services:
       # Render injects PORT itself; server/index.js reads it first.
       - key: NODE_VERSION
         value: 22
-      # Wired straight from the managed Postgres defined below. This is what
-      # makes data survive deploys and restarts — the whole point of moving off
-      # SQLite on an ephemeral filesystem.
-      - key: DATABASE_URL
-        fromDatabase:
-          name: linguaguard-db
-          property: connectionString
       # Generated once by Render and kept stable across deploys. Rotating this
       # would invalidate every existing session and 2FA secret, since the
       # at-rest encryption key is derived from it.
@@ -105,12 +98,17 @@ services:
       - key: TIKTOK_CLIENT_SECRET
         sync: false
 
-# A managed PostgreSQL database — the durable store the app now uses. Unlike a
-# disk, the free Postgres plan persists across deploys, so users, rules, and
-# activity history survive. Render's free database expires after ~30 days of
-# the plan and is capped at 1GB; upgrade the plan for production.
-databases:
-  - name: linguaguard-db
-    plan: free
-    databaseName: linguaguard
-    user: linguaguard
+    # IMPORTANT — data persistence.
+    #
+    # This app stores everything in SQLite at server/database.db. Render's
+    # filesystem is EPHEMERAL: every deploy and every restart wipes it, so all
+    # users, rules, and activity history are lost and a fresh admin is seeded.
+    # That is acceptable for a demo, not for real users.
+    #
+    # A persistent disk fixes it, but disks are not available on the free plan.
+    # To use one: change `plan: free` above to `plan: starter`, then uncomment:
+    #
+    # disk:
+    #   name: linguaguard-data
+    #   mountPath: /opt/render/project/src/server
+    #   sizeGB: 1

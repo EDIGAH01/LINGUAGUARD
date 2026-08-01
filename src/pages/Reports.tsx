@@ -77,7 +77,7 @@ export default function Reports() {
         </div>
 
         {/* Weekly Summary Cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
             { label: "Total Blocked", value: weeklyTotals.blocked, icon: ShieldX, color: "text-danger", bg: "bg-danger/10" },
             { label: "Total Flagged", value: weeklyTotals.flagged, icon: AlertTriangle, color: "text-warning", bg: "bg-warning/10" },

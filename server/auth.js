@@ -106,14 +106,11 @@ function requireAuth(req, res, next) {
       return res.status(401).json({ error: "This session has been signed out." });
     }
     // Throttle the write — every authenticated request would otherwise
-    // trigger a save(), which is unnecessary churn for a timestamp that only
-    // needs roughly-current precision. Deliberately fire-and-forget: this
-    // middleware stays synchronous, and a missed lastSeenAt bump is harmless
-    // (the .catch keeps a transient DB hiccup from becoming an unhandled
-    // rejection). The diff-based save writes just this one session row.
+    // trigger a full save(), which is unnecessary disk churn for a timestamp
+    // that only needs roughly-current precision.
     if (Date.now() - new Date(session.lastSeenAt).getTime() > 60_000) {
       session.lastSeenAt = new Date().toISOString();
-      save(data).catch((err) => console.error("[auth] lastSeenAt update failed:", err.message));
+      save(data);
     }
 
     // Use the live role, not whatever the token claimed at login time — an

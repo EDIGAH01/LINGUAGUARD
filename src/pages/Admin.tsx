@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Users, ShieldCheck, Ban, Trash2, CreditCard, Mail, Smartphone } from "lucide-react";
+import { Users, ShieldCheck, Ban, Trash2, CreditCard, Mail, Smartphone, Search } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -41,6 +42,8 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<AuthUser | null>(null);
   const [testingChannel, setTestingChannel] = useState<"email" | "sms" | null>(null);
+  const [userSearch, setUserSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "banned">("all");
 
   const load = async () => {
     setLoading(true);
@@ -214,7 +217,30 @@ export default function Admin() {
 
         <Card className="border-border shadow-brand-sm">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold">Users</CardTitle>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+              <CardTitle className="text-sm font-semibold">Users</CardTitle>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or email…"
+                    value={userSearch}
+                    onChange={(e) => setUserSearch(e.target.value)}
+                    className="h-8 pl-8 text-xs w-52"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+                  <SelectTrigger className="h-8 w-28 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="banned">Banned</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent className="p-0">
             {loading ? (
@@ -236,7 +262,14 @@ export default function Admin() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map((u) => (
+                    {users
+                      .filter((u) => {
+                        const q = userSearch.toLowerCase();
+                        const matchSearch = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                        const matchStatus = statusFilter === "all" || u.status === statusFilter;
+                        return matchSearch && matchStatus;
+                      })
+                      .map((u) => (
                       <tr key={u.id} className="border-b border-border last:border-0">
                         <td className="p-3 font-medium text-foreground">
                           {u.name}

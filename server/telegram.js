@@ -19,10 +19,10 @@ function newCode(data, userId) {
 }
 
 /** Creates a one-time code + deep link for the user to open in Telegram and hit "Start" (personal DM). */
-async function startVerification(userId) {
+function startVerification(userId) {
   const data = load();
   const code = newCode(data, userId);
-  await save(data);
+  save(data);
   return { code, deepLink: `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?start=${code}` };
 }
 
@@ -33,10 +33,10 @@ async function startVerification(userId) {
  * private one. Reuses the same code/verification path as the personal flow;
  * pollOnce below tells the two apart via msg.chat.type.
  */
-async function startGroupVerification(userId) {
+function startGroupVerification(userId) {
   const data = load();
   const code = newCode(data, userId);
-  await save(data);
+  save(data);
   return { code, deepLink: `https://t.me/${process.env.TELEGRAM_BOT_USERNAME}?startgroup=${code}` };
 }
 
@@ -171,7 +171,7 @@ async function pollOnce() {
       }
     }
 
-    if (changed) await save(data);
+    if (changed) save(data);
     setKv(POLL_OFFSET_KEY, String(pollOffset));
   } catch (err) {
     console.error("[telegram] poll error:", err.message);

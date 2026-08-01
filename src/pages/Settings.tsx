@@ -397,13 +397,21 @@ export default function Settings() {
 
   return (
     <AppLayout>
-      <div className="p-6 space-y-6 animate-fade-in-up max-w-2xl">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Manage your account and preferences
-          </p>
+      <div className="p-6 space-y-6 animate-fade-in-up max-w-3xl">
+        {/* Sticky header */}
+        <div className="sticky top-0 z-10 -mx-6 -mt-6 px-6 pt-5 pb-4 bg-background/90 backdrop-blur border-b border-border mb-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground tracking-tight">Settings</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">Manage your account and preferences</p>
+            </div>
+            {saved && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 animate-fade-in">
+                <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                <span className="text-xs font-medium text-success">Saved</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Profile */}

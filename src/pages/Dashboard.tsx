@@ -7,6 +7,7 @@ import {
   Link2,
   Filter,
   ArrowUpRight,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +19,7 @@ import { useServerRules } from "@/lib/rules";
 import { useActivity, useContentStats, formatRelativeTime } from "@/lib/activity";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { useState, useCallback } from "react";
 
 const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementType; classes: string }> = {
   blocked: { label: "Blocked", icon: ShieldX, classes: "status-blocked border" },
@@ -28,8 +30,18 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
 export default function Dashboard() {
   const [platforms] = usePlatforms();
   const { rules } = useServerRules();
-  const { events } = useActivity();
-  const { stats } = useContentStats();
+  const { events, refresh: refreshActivity } = useActivity();
+  const { stats, refresh: refreshStats } = useContentStats();
+  const [lastRefreshed, setLastRefreshed] = useState(() => new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refreshActivity?.(), refreshStats?.()].filter(Boolean));
+    setLastRefreshed(new Date());
+    setRefreshing(false);
+  }, [refreshActivity, refreshStats]);
+
   const recentEvents = events.slice(0, 6);
   const connectedPlatforms = platforms.filter((p) => p.status === "connected");
   const activeRules = rules.filter((r) => r.enabled).length;
@@ -95,6 +107,17 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/40 border border-border text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              title={`Last updated ${lastRefreshed.toLocaleTimeString()}`}
+            >
+              <RefreshCw className={cn("w-3 h-3", refreshing && "animate-spin")} />
+              <span className="hidden sm:inline">
+                {lastRefreshed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            </button>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/10 border border-success/20">
               <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
               <span className="text-xs font-medium text-success">Protection Active</span>
@@ -224,10 +247,19 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="space-y-2">
             {recentEvents.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-8">
-                No activity yet — try the test scanner on the{" "}
-                <Link to="/rules" className="text-primary hover:underline">Filter Rules</Link> page.
-              </p>
+              <div className="py-10 flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-muted-foreground/40" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">No activity yet</p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                    Try the test scanner on the{" "}
+                    <Link to="/rules" className="text-primary hover:underline font-medium">Filter Rules</Link>{" "}
+                    page to see events appear here.
+                  </p>
+                </div>
+              </div>
             )}
             {recentEvents.map((event) => {
               const cfg = statusConfig[event.status];

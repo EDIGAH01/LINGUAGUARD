@@ -7,6 +7,7 @@ import {
   Search,
   Filter,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -91,6 +92,30 @@ export default function Activity() {
     allowed: allEvents.filter((e) => e.status === "allowed").length,
   };
 
+  const exportCsv = () => {
+    const rows = [
+      ["Timestamp", "Status", "Platform", "Sender", "Rule Matched", "Category", "Severity", "Content"],
+      ...filtered.map((e) => [
+        e.timestamp,
+        e.status,
+        e.platformName,
+        e.sender,
+        e.ruleMatched,
+        e.category,
+        e.severity,
+        `"${e.content.replace(/"/g, '""')}"`,
+      ]),
+    ];
+    const csv = rows.map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `linguaguard-activity-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6 animate-fade-in-up">
@@ -102,10 +127,22 @@ export default function Activity() {
               Real-time content filtering events across all platforms
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {filtered.length > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs hidden sm:flex"
+                onClick={exportCsv}
+                title="Download filtered results as CSV"
+              >
+                <Download className="w-3.5 h-3.5" />
+                Export CSV
+              </Button>
+            )}
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/40 border border-border">
               <span className="text-xs font-medium text-muted-foreground">
-                {limits.retentionDays >= 365 ? "1-year" : `${limits.retentionDays}-day`} log retention · {limits.label}
+                {limits.retentionDays >= 365 ? "1-year" : `${limits.retentionDays}-day`} retention · {limits.label}
               </span>
             </div>
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-danger/10 border border-danger/20">
@@ -172,9 +209,18 @@ export default function Activity() {
         {/* Events List */}
         <div className="space-y-2">
           {paginated.length === 0 ? (
-            <div className="py-16 text-center text-muted-foreground">
-              <Filter className="w-10 h-10 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No events match your filters</p>
+            <div className="py-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
+              <div className="w-14 h-14 rounded-2xl bg-muted/60 flex items-center justify-center">
+                <Filter className="w-6 h-6 opacity-30" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">No events match your filters</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {allEvents.length === 0
+                    ? "Run the test scanner on the Filter Rules page to generate your first events."
+                    : "Try clearing the search or changing the status filter."}
+                </p>
+              </div>
             </div>
           ) : (
             paginated.map((event) => {
@@ -265,9 +311,9 @@ export default function Activity() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between pt-2">
             <span className="text-xs text-muted-foreground">
-              Showing {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} of {filtered.length}
+              {(page - 1) * ITEMS_PER_PAGE + 1}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)} of {filtered.length} events
             </span>
             <div className="flex items-center gap-1">
               <Button
@@ -277,22 +323,30 @@ export default function Activity() {
                 disabled={page === 1}
                 onClick={() => setPage((p) => p - 1)}
               >
-                Previous
+                ← Prev
               </Button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).slice(
-                Math.max(0, page - 3),
-                Math.min(totalPages, page + 2)
-              ).map((p) => (
-                <Button
-                  key={p}
-                  variant={p === page ? "default" : "outline"}
-                  size="sm"
-                  className="h-7 w-7 p-0 text-xs"
-                  onClick={() => setPage(p)}
-                >
-                  {p}
-                </Button>
-              ))}
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "…" ? (
+                    <span key={`ellipsis-${i}`} className="text-xs text-muted-foreground px-1">…</span>
+                  ) : (
+                    <Button
+                      key={p}
+                      variant={p === page ? "default" : "outline"}
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      onClick={() => setPage(p as number)}
+                    >
+                      {p}
+                    </Button>
+                  )
+                )}
               <Button
                 variant="outline"
                 size="sm"
@@ -300,7 +354,7 @@ export default function Activity() {
                 disabled={page === totalPages}
                 onClick={() => setPage((p) => p + 1)}
               >
-                Next
+                Next →
               </Button>
             </div>
           </div>

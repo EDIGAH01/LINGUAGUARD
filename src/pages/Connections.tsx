@@ -150,7 +150,7 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
   // Real OAuth 2.0 + PKCE for the platforms that have it wired server-side —
   // everything else still uses the simulated flow below until a developer
   // app is registered for it.
-  const oauthProvider = platform?.id === "twitter" ? "x" : platform?.id === "tiktok" ? "tiktok" : null;
+  const oauthProvider = platform?.id === "twitter" ? "x" : platform?.id === "tiktok" ? "tiktok" : platform?.id === "instagram" ? "instagram" : null;
   const [oauthUrl, setOauthUrl] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState("");
 

@@ -113,4 +113,7 @@ declare global {
   }
 }
 
-window.__routers__ = routers;
+// Guard against SSR / test environments where window is not defined.
+if (typeof window !== "undefined") {
+  window.__routers__ = routers;
+}
