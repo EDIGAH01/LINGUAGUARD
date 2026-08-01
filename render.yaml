@@ -98,6 +98,12 @@ services:
       - key: TIKTOK_CLIENT_SECRET
         sync: false
 
+      # Optional AI moderation layer (OpenAI Moderations API). Leave unset to
+      # run keyword-only; set it to enable AI-assisted scanning. Requires a
+      # funded OpenAI account.
+      - key: OPENAI_API_KEY
+        sync: false
+
     # IMPORTANT — data persistence.
     #
     # This app stores everything in SQLite at server/database.db. Render's

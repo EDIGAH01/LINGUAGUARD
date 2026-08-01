@@ -13,14 +13,14 @@ router.use(requireAuth);
  * and the Telegram path share one evaluation engine rather than two that
  * could drift apart.
  */
-router.post("/scan", (req, res) => {
+router.post("/scan", async (req, res) => {
   const { platformId, platformName, sender, content } = req.body || {};
   if (!content || typeof content !== "string" || !content.trim()) {
     return res.status(400).json({ error: "content is required." });
   }
 
   const data = load();
-  const { event, matchedRule } = scanAndRecord(data, { userId: req.auth.sub, platformId, platformName, sender, content });
+  const { event, matchedRule } = await scanAndRecord(data, { userId: req.auth.sub, platformId, platformName, sender, content });
   save(data);
 
   const user = data.users.find((u) => u.id === req.auth.sub);

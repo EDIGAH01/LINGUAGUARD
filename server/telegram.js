@@ -145,7 +145,7 @@ async function pollOnce() {
       if (!verifiedLink) continue;
 
       const senderName = msg.from?.username || msg.from?.first_name || verifiedLink.telegramUsername || "Telegram user";
-      const { event } = scanAndRecord(data, {
+      const { event } = await scanAndRecord(data, {
         userId: verifiedLink.userId,
         platformId: "telegram",
         platformName: verifiedLink.chatType === "private" ? "Telegram" : `Telegram · ${verifiedLink.groupTitle}`,
