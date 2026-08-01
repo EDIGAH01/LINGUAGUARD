@@ -1,4 +1,4 @@
-// ─── Types ────────────────────────────────────────────────────────────────────
+﻿// â”€â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type PlatformCategory = "social" | "messaging" | "ai";
 export type ConnectionStatus = "connected" | "disconnected" | "pending";
@@ -37,9 +37,9 @@ export interface Platform {
   accounts: ConnectedAccount[];
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Mock Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Platform identity/connection status below is still a client-side demo (real
-// OAuth needs a developer app registered with each platform) — but filter
+// OAuth needs a developer app registered with each platform) â€” but filter
 // rules, activity events, and aggregate stats are real now; see
 // src/lib/rules.ts and src/lib/activity.ts, backed by server/routes/rules.js
 // and server/routes/content.js.
@@ -81,7 +81,7 @@ export const platforms: Platform[] = [
     id: "twitter",
     name: "X / Twitter",
     category: "social",
-    icon: "Twitter",
+    icon: "X",
     status: "connected",
     color: "from-sky-400 to-blue-600",
     description: "Filter tweets, replies & mentions",
@@ -117,7 +117,7 @@ export const platforms: Platform[] = [
     id: "tiktok",
     name: "TikTok",
     category: "social",
-    icon: "Music",
+    icon: "TikTok",
     status: "connected",
     color: "from-slate-800 to-slate-900",
     description: "Filter video comments & captions",
@@ -140,7 +140,7 @@ export const platforms: Platform[] = [
     id: "youtube",
     name: "YouTube",
     category: "social",
-    icon: "Youtube",
+    icon: "YouTube",
     status: "disconnected",
     color: "from-red-500 to-red-700",
     description: "Moderate comments & live chat",
@@ -153,7 +153,7 @@ export const platforms: Platform[] = [
     id: "whatsapp",
     name: "WhatsApp",
     category: "messaging",
-    icon: "MessageCircle",
+    icon: "WhatsApp",
     status: "connected",
     color: "from-green-500 to-emerald-600",
     description: "Screen messages & group chats",
@@ -176,7 +176,7 @@ export const platforms: Platform[] = [
     id: "telegram",
     name: "Telegram",
     category: "messaging",
-    icon: "Send",
+    icon: "Telegram",
     status: "disconnected",
     color: "from-sky-400 to-cyan-500",
     description: "Filter channels, groups & bots",
@@ -189,7 +189,7 @@ export const platforms: Platform[] = [
     id: "chatgpt",
     name: "ChatGPT",
     category: "ai",
-    icon: "Bot",
+    icon: "OpenAI",
     status: "connected",
     color: "from-emerald-500 to-teal-600",
     description: "Guard inputs & outputs from GPT",
@@ -199,7 +199,7 @@ export const platforms: Platform[] = [
     accounts: [
       {
         id: "gpt-1",
-        handle: "sk-••••••••••••••••vJ4K",
+        handle: "sk-â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢vJ4K",
         displayName: "Production Key",
         avatar: "PK",
         connectedAt: "Jun 8, 2026",
@@ -212,7 +212,7 @@ export const platforms: Platform[] = [
     id: "claude",
     name: "Claude",
     category: "ai",
-    icon: "Cpu",
+    icon: "Claude",
     status: "pending",
     color: "from-orange-400 to-amber-500",
     description: "Filter Anthropic Claude sessions",
@@ -225,7 +225,7 @@ export const platforms: Platform[] = [
     id: "gemini",
     name: "Gemini",
     category: "ai",
-    icon: "Sparkles",
+    icon: "Gemini",
     status: "disconnected",
     color: "from-blue-500 to-indigo-600",
     description: "Monitor Google Gemini interactions",
@@ -236,7 +236,7 @@ export const platforms: Platform[] = [
   },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export const getCategoryLabel = (cat: FilterCategory): string => ({
   hate_speech: "Hate Speech",

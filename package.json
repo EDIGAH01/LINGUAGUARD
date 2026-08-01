@@ -89,6 +89,7 @@
     "autoprefixer": "^10.5.0",
     "concurrently": "^10.0.3",
     "postcss": "^8.5.15",
+    "simple-icons": "^16.27.1",
     "tailwindcss": "^3.4.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16"

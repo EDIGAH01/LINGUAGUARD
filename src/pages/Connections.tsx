@@ -7,12 +7,8 @@ import {
   XCircle,
   Loader2,
   Zap,
-  MessageCircle,
   Send,
   Bot,
-  Cpu,
-  Sparkles,
-  Music,
   Plus,
   Trash2,
   KeyRound,
@@ -25,7 +21,18 @@ import {
   Lock,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { InstagramIcon, TwitterIcon, FacebookIcon, YoutubeIcon, WhatsAppIcon } from "@/components/icons/social-icons";
+import {
+  InstagramIcon,
+  XIcon,
+  FacebookIcon,
+  TikTokIcon,
+  YouTubeIcon,
+  WhatsAppIcon,
+  TelegramIcon,
+  OpenAIIcon,
+  ClaudeIcon,
+  GeminiIcon,
+} from "@/components/icons/social-icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,16 +70,15 @@ import { cn } from "@/lib/utils";
 
 const iconMap: Record<string, React.ElementType> = {
   Instagram: InstagramIcon,
-  Twitter: TwitterIcon,
+  X: XIcon,
   Facebook: FacebookIcon,
-  Youtube: YoutubeIcon,
+  TikTok: TikTokIcon,
+  YouTube: YouTubeIcon,
   WhatsApp: WhatsAppIcon,
-  MessageCircle,
-  Send,
-  Bot,
-  Cpu,
-  Sparkles,
-  Music,
+  Telegram: TelegramIcon,
+  OpenAI: OpenAIIcon,
+  Claude: ClaudeIcon,
+  Gemini: GeminiIcon,
 };
 
 const categoryLabel: Record<PlatformCategory, string> = {
