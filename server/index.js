@@ -234,6 +234,7 @@ async function start() {
   await db.initDb();
 
   ensureSeedAdmin();
+  require("./demoData").ensureDemoData();
   telegram.startPolling();
   startDigestScheduler();
   // Fire-and-forget: a slow SMS provider must not delay startup.

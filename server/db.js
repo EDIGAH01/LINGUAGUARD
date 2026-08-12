@@ -49,7 +49,7 @@ function ensureSeedAdmin() {
 
   data.users.push({
     id: crypto.randomUUID(),
-    name: "Admin",
+    name: process.env.SEED_ADMIN_NAME || "Edigah Clifford",
     email,
     phone: "",
     passwordHash: bcrypt.hashSync(password, 10),

@@ -2,7 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { platforms as defaultPlatforms, type Platform } from "./data";
 import { planLimits, type PlanTier } from "./plan";
 
-const PLATFORMS_KEY = "linguaguard-platforms";
+// Bump the version suffix whenever the default demo seed in data.ts changes,
+// so browsers holding an older seed in localStorage pick up the new demo data
+// instead of showing stale connections. (Connections are a client-side demo;
+// real OAuth/Telegram links re-sync from the backend on reconnect.)
+const PLATFORMS_KEY = "linguaguard-platforms-v3";
 
 type StoreKey = typeof PLATFORMS_KEY;
 

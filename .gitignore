@@ -21,7 +21,9 @@ server/db.json.pre-sqlite-backup
 server/database.db
 server/database.db-wal
 server/database.db-shm
+server/database.db.bak
+*.db.bak
 server/.seed-admin-credentials.txt
 
-# One-shot local maintenance script — not part of the app
+# One-shot local maintenance script ï¿½ not part of the app
 server/scripts/update-admin-email.js
