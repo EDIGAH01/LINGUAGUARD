@@ -51,6 +51,60 @@ router.post("/telegram/group/start", (req, res) => {
 });
 
 /**
+ * Registers the caller's WhatsApp Business phone-number id so the inbound
+ * webhook (server/routes/whatsapp.js) can route messages that arrive on that
+ * number to this user's rules — the mechanism that makes WhatsApp ingestion
+ * multi-tenant rather than single-business. Idempotent per user: re-registering
+ * replaces any previous number for this account.
+ */
+router.post("/whatsapp/register", (req, res) => {
+  const { phoneNumberId, label } = req.body || {};
+  if (!phoneNumberId || typeof phoneNumberId !== "string") {
+    return res.status(400).json({ error: "phoneNumberId is required (the WhatsApp Business number id from Meta)." });
+  }
+
+  const data = load();
+  // A given Business number id can only belong to one account.
+  const claimedByOther = data.platformConnections.find(
+    (c) => c.provider === "whatsapp" && c.externalId === phoneNumberId && c.userId !== req.auth.sub
+  );
+  if (claimedByOther) {
+    return res.status(409).json({ error: "That WhatsApp Business number is already connected to another account." });
+  }
+
+  data.platformConnections = data.platformConnections.filter(
+    (c) => !(c.provider === "whatsapp" && c.userId === req.auth.sub)
+  );
+  data.platformConnections.push({
+    id: crypto.randomUUID(),
+    userId: req.auth.sub,
+    provider: "whatsapp",
+    externalId: phoneNumberId,
+    username: label || "WhatsApp Business",
+    displayName: label || "WhatsApp Business",
+    connectedAt: new Date().toISOString(),
+  });
+  save(data);
+  res.json({ connected: true, phoneNumberId });
+});
+
+router.get("/whatsapp/status", (req, res) => {
+  const data = load();
+  const conn = data.platformConnections.find((c) => c.provider === "whatsapp" && c.userId === req.auth.sub);
+  res.json(conn ? { connected: true, phoneNumberId: conn.externalId, displayName: conn.displayName } : { connected: false });
+});
+
+router.delete("/whatsapp", (req, res) => {
+  const data = load();
+  const before = data.platformConnections.length;
+  data.platformConnections = data.platformConnections.filter(
+    (c) => !(c.provider === "whatsapp" && c.userId === req.auth.sub)
+  );
+  if (data.platformConnections.length !== before) save(data);
+  res.json({ ok: true });
+});
+
+/**
  * Phone-based platform connect flow (WhatsApp, and any other platform with
  * authMethod "phone"). Replaces the old client-side "generate a code and
  * display it in the UI" demo — the code now only ever exists server-side

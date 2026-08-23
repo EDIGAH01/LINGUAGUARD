@@ -19,6 +19,7 @@ const contentRoutes = require("./routes/content");
 const apiKeyRoutes = require("./routes/apikeys");
 const twoFactorRoutes = require("./routes/twofactor");
 const oauthRoutes = require("./routes/oauth");
+const whatsappRoutes = require("./routes/whatsapp");
 
 // Deferred to the async startup below — the Postgres backend must finish
 // hydrating (initDb) before anything reads the store via ensureSeedAdmin or a
@@ -46,7 +47,9 @@ app.use(helmet());
 const allowedOrigin = process.env.ALLOWED_ORIGIN;
 app.use(cors(allowedOrigin ? { origin: allowedOrigin } : {}));
 
-app.use(express.json());
+// Capture the raw request body so the WhatsApp webhook can verify Meta's
+// X-Hub-Signature-256 HMAC; harmless for every other route.
+app.use(express.json({ verify: (req, _res, buf) => { req.rawBody = buf; } }));
 
 app.use("/api/auth/2fa", twoFactorRoutes);
 app.use("/api/auth", authRoutes);
@@ -57,6 +60,7 @@ app.use("/api/rules", rulesRoutes);
 app.use("/api/content", contentRoutes);
 app.use("/api/apikeys", apiKeyRoutes);
 app.use("/api/oauth", oauthRoutes);
+app.use("/api/whatsapp", whatsappRoutes);
 
 const { PLAN_PRICES } = require("./plans");
 
@@ -236,6 +240,7 @@ async function start() {
   ensureSeedAdmin();
   require("./demoData").ensureDemoData();
   telegram.startPolling();
+  require("./ingestion").startIngestion();
   startDigestScheduler();
   // Fire-and-forget: a slow SMS provider must not delay startup.
   require("./sms").probeChannelHealth();

@@ -161,6 +161,7 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
     : platform?.id === "tiktok" ? "tiktok"
     : platform?.id === "instagram" ? "instagram"
     : platform?.id === "youtube" ? "youtube"
+    : platform?.id === "facebook" ? "facebook"
     : null;
   const [oauthUrl, setOauthUrl] = useState<string | null>(null);
   const [oauthError, setOauthError] = useState("");

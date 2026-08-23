@@ -53,11 +53,20 @@ async function probeChannelHealth() {
     const approved = (data.data || []).some((s) => s.sender_id === wanted && s.status === "approved");
 
     if (!approved) {
-      lastSendFailed = true;
-      console.warn(
-        `[sms] Sender ID "${wanted}" is not approved on Termii — outbound SMS is disabled ` +
-          `until it is. Register it at https://accounts.termii.com/ (Sender IDs).`
-      );
+      // Termii can't send — but that only takes the whole channel down if it's
+      // the ONLY provider. When TopMessage is also configured, sendSms falls
+      // through to it, so the channel stays healthy and must not be gated.
+      if (topMessageConfigured()) {
+        console.warn(
+          `[sms] Termii sender ID "${wanted}" is not approved — sends will fall through to TopMessage.`
+        );
+      } else {
+        lastSendFailed = true;
+        console.warn(
+          `[sms] Sender ID "${wanted}" is not approved on Termii — outbound SMS is disabled ` +
+            `until it is. Register it at https://accounts.termii.com/ (Sender IDs).`
+        );
+      }
     }
   } catch (err) {
     // A probe that can't complete says nothing about the provider, so leave

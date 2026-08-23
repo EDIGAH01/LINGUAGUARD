@@ -2,7 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const { requireAuth, encryptSecret } = require("../auth");
 const { load, save } = require("../db");
-const { isConfigured, startAuth, consumeState, exchangeCode, fetchProfile, PROVIDERS } = require("../oauth");
+const { isConfigured, startAuth, consumeState, exchangeCode, fetchProfile, extendMetaToken, PROVIDERS } = require("../oauth");
 
 const router = express.Router();
 
@@ -74,7 +74,20 @@ router.get("/:provider/callback", async (req, res) => {
   }
 
   try {
-    const tokens = await exchangeCode(provider, String(code), ctx.codeVerifier, ctx.redirectUri);
+    let tokens = await exchangeCode(provider, String(code), ctx.codeVerifier, ctx.redirectUri);
+
+    // Meta hands back a short-lived (~1h) token — immediately exchange it for a
+    // long-lived (~60d) one so the connection survives past the first hour and
+    // the ingestion poller can later roll it forward before it expires.
+    if (PROVIDERS[provider]?.meta) {
+      try {
+        const long = await extendMetaToken(provider, tokens.access_token);
+        if (long?.access_token) tokens = { ...tokens, ...long };
+      } catch (err) {
+        console.warn(`[oauth] ${label} long-lived token exchange failed (using short-lived):`, err.message);
+      }
+    }
+
     let profile = { externalId: null, username: `${label} account`, displayName: `${label} account` };
     try {
       profile = await fetchProfile(provider, tokens.access_token);

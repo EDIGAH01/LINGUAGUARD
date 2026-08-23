@@ -105,6 +105,16 @@ services:
         sync: false
       - key: INSTAGRAM_APP_SECRET
         sync: false
+      - key: FACEBOOK_APP_ID
+        sync: false
+      - key: FACEBOOK_APP_SECRET
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_OWNER_EMAIL
+        sync: false
 
       # Optional AI moderation layer. Set either or both to enable AI-assisted
       # scanning on top of keyword rules (OpenAI is tried first, then Gemini).

@@ -33,6 +33,10 @@ const PROVIDERS = {
     tokenMethod: "GET",
     // Meta's OAuth 2.0 does not support PKCE — skip code_challenge params.
     noPkce: true,
+    // Meta issues short-lived (~1h) tokens that must be exchanged for a
+    // long-lived (~60d) one, and re-exchanged before expiry to roll forward —
+    // there is no refresh_token. extendMetaToken() handles both.
+    meta: true,
     async fetchProfile(accessToken) {
       // Get the Instagram Business/Creator account linked to this token.
       // First get the Facebook user's pages, then find the IG account on each.
@@ -146,6 +150,38 @@ const PROVIDERS = {
       if (!me.ok) throw new Error(`profile fetch failed: HTTP ${res.status}`);
       const info = await me.json();
       return { externalId: info.id, username: info.email, displayName: info.name || info.email };
+    },
+  },
+  facebook: {
+    label: "Facebook",
+    // Same Meta OAuth dialog as Instagram, but Page-oriented scopes: read the
+    // Pages the user manages, their posts, and the comments on them — plus
+    // manage_engagement so blocked comments can actually be hidden on-platform.
+    authorizeUrl: "https://www.facebook.com/v21.0/dialog/oauth",
+    tokenUrl: "https://graph.facebook.com/v21.0/oauth/access_token",
+    clientIdEnv: "FACEBOOK_APP_ID",
+    clientSecretEnv: "FACEBOOK_APP_SECRET",
+    scope: "pages_show_list,pages_read_engagement,pages_manage_engagement",
+    clientIdParam: "client_id",
+    tokenAuthStyle: "body",
+    tokenMethod: "GET",
+    noPkce: true,
+    meta: true,
+    async fetchProfile(accessToken) {
+      // Identify the connection by the first Page the user manages (that's what
+      // gets moderated); fall back to the Facebook user's own name.
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/me/accounts?fields=name,username&access_token=${accessToken}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const page = data.data?.[0];
+        if (page) return { externalId: page.id, username: page.username || page.name, displayName: page.name };
+      }
+      const me = await fetch(`https://graph.facebook.com/v21.0/me?fields=id,name&access_token=${accessToken}`);
+      if (!me.ok) throw new Error(`profile fetch failed: HTTP ${res.status}`);
+      const info = await me.json();
+      return { externalId: info.id, username: info.name, displayName: info.name };
     },
   },
 };
@@ -263,4 +299,58 @@ async function fetchProfile(provider, accessToken) {
   return PROVIDERS[provider].fetchProfile(accessToken);
 }
 
-module.exports = { PROVIDERS, isConfigured, startAuth, consumeState, exchangeCode, fetchProfile };
+/**
+ * Exchanges a stored refresh_token for a fresh access_token. Used by the
+ * ingestion poller when a connection's access token has expired. Works for
+ * providers that issue refresh tokens (Google/YouTube via access_type=offline,
+ * X via offline.access). Meta's long-lived tokens aren't refreshed this way —
+ * they simply expire after ~60 days and the user reconnects — so callers only
+ * invoke this when a refreshToken actually exists.
+ */
+async function refreshAccessToken(provider, refreshToken) {
+  const p = PROVIDERS[provider];
+  if (!p || !refreshToken) return null;
+
+  const body = new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken });
+  const headers = { "Content-Type": "application/x-www-form-urlencoded" };
+  if (p.tokenAuthStyle === "basic") {
+    const basic = Buffer.from(`${process.env[p.clientIdEnv]}:${process.env[p.clientSecretEnv]}`).toString("base64");
+    headers.Authorization = `Basic ${basic}`;
+  } else {
+    body.set(p.clientIdParam, process.env[p.clientIdEnv]);
+    body.set("client_secret", process.env[p.clientSecretEnv]);
+  }
+
+  const res = await fetch(p.tokenUrl, { method: "POST", headers, body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error_description || data.error || `token refresh failed: HTTP ${res.status}`);
+  }
+  return data; // { access_token, expires_in, refresh_token? }
+}
+
+/**
+ * Meta's token lifecycle has no refresh_token. Instead, a valid token is
+ * re-exchanged via grant_type=fb_exchange_token to obtain a fresh ~60-day
+ * token. Called both right after connect (short-lived → long-lived) and by the
+ * ingestion poller when a stored token is nearing expiry (long-lived →
+ * long-lived, rolling the window forward while it's still valid).
+ */
+async function extendMetaToken(provider, token) {
+  const p = PROVIDERS[provider];
+  if (!p?.meta) return null;
+  const params = new URLSearchParams({
+    grant_type: "fb_exchange_token",
+    client_id: process.env[p.clientIdEnv],
+    client_secret: process.env[p.clientSecretEnv],
+    fb_exchange_token: token,
+  });
+  const res = await fetch(`${p.tokenUrl}?${params.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error?.message || data.error || `token extend failed: HTTP ${res.status}`);
+  }
+  return data; // { access_token, token_type, expires_in }
+}
+
+module.exports = { PROVIDERS, isConfigured, startAuth, consumeState, exchangeCode, fetchProfile, refreshAccessToken, extendMetaToken };

@@ -1,27 +1,45 @@
-import Dashboard from "./pages/Dashboard";
-import Connections from "./pages/Connections";
-import FilterRules from "./pages/FilterRules";
-import Activity from "./pages/Activity";
-import Reports from "./pages/Reports";
-import Settings from "./pages/Settings";
-import Admin from "./pages/Admin";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import Terms from "./pages/Terms";
-import Privacy from "./pages/Privacy";
-import NotFound from "./pages/NotFound";
+import { lazy, Suspense, type ReactNode } from "react";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+
+// Route-level code splitting: each page becomes its own chunk, loaded on
+// demand, so the initial bundle no longer ships every page (and its heavy
+// dependencies — charts, dialogs, icons) up front. Vite/Rolldown emits a
+// separate file per lazy import automatically.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Connections = lazy(() => import("./pages/Connections"));
+const FilterRules = lazy(() => import("./pages/FilterRules"));
+const Activity = lazy(() => import("./pages/Activity"));
+const Reports = lazy(() => import("./pages/Reports"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Login = lazy(() => import("./pages/Login"));
+const Signup = lazy(() => import("./pages/Signup"));
+const Terms = lazy(() => import("./pages/Terms"));
+const Privacy = lazy(() => import("./pages/Privacy"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+/** Brief fallback shown while a route's chunk is being fetched. */
+function PageLoader() {
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted border-t-primary" />
+    </div>
+  );
+}
+
+/** Wraps a lazily-loaded element in a Suspense boundary with the loader. */
+const withSuspense = (node: ReactNode) => <Suspense fallback={<PageLoader />}>{node}</Suspense>;
 
 export const routers = [
   {
     path: "/login",
     name: "login",
-    element: <Login />,
+    element: withSuspense(<Login />),
   },
   {
     path: "/signup",
     name: "signup",
-    element: <Signup />,
+    element: withSuspense(<Signup />),
   },
   /* Legal pages are intentionally PUBLIC — platform reviewers (TikTok, Meta,
      Google) open these signed-out during app review, and wrapping them in
@@ -29,81 +47,67 @@ export const routers = [
   {
     path: "/terms",
     name: "terms",
-    element: <Terms />,
+    element: withSuspense(<Terms />),
   },
   {
     path: "/privacy",
     name: "privacy",
-    element: <Privacy />,
+    element: withSuspense(<Privacy />),
   },
   {
     path: "/",
     name: "dashboard",
     element: (
-      <ProtectedRoute>
-        <Dashboard />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<Dashboard />)}</ProtectedRoute>
     ),
   },
   {
     path: "/connections",
     name: "connections",
     element: (
-      <ProtectedRoute>
-        <Connections />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<Connections />)}</ProtectedRoute>
     ),
   },
   {
     path: "/rules",
     name: "rules",
     element: (
-      <ProtectedRoute>
-        <FilterRules />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<FilterRules />)}</ProtectedRoute>
     ),
   },
   {
     path: "/activity",
     name: "activity",
     element: (
-      <ProtectedRoute>
-        <Activity />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<Activity />)}</ProtectedRoute>
     ),
   },
   {
     path: "/reports",
     name: "reports",
     element: (
-      <ProtectedRoute>
-        <Reports />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<Reports />)}</ProtectedRoute>
     ),
   },
   {
     path: "/settings",
     name: "settings",
     element: (
-      <ProtectedRoute>
-        <Settings />
-      </ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<Settings />)}</ProtectedRoute>
     ),
   },
   {
     path: "/admin",
     name: "admin",
     element: (
-      <ProtectedRoute requireAdmin>
-        <Admin />
-      </ProtectedRoute>
+      <ProtectedRoute requireAdmin>{withSuspense(<Admin />)}</ProtectedRoute>
     ),
   },
   /* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */
   {
     path: "*",
     name: "404",
-    element: <NotFound />,
+    element: withSuspense(<NotFound />),
   },
 ];
 
