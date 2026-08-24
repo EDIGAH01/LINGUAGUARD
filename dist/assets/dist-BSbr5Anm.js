@@ -1,0 +1,1 @@
+import{i as e,n as t,o as n}from"./jsx-runtime-tHiRxOvn.js";function r(e){let t=i.useRef({value:e,previous:e});return i.useMemo(()=>(t.current.value!==e&&(t.current.previous=t.current.value,t.current.value=e),t.current.previous),[e])}var i,a=e((()=>{i=n(t(),1)}));export{r as n,a as t};
