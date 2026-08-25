@@ -496,3 +496,35 @@ body,
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ─── Logo (3D shield + wordmark) ────────────────────────────────────────────
+   Styling for the Logo3D component and its static fallback (Logo3DCanvas.tsx /
+   Logo3D.tsx). The rotating 3D canvas — or the fallback SVG — carries the
+   shield itself; these classes handle the column layout and the "LinguaGuard"
+   wordmark + "LANGUAGE, PROTECTED" tagline beneath it. Only genuinely dynamic
+   values stay inline on the elements: the pixel size of the shield stage, the
+   wordmark font-size (proportional to that size), and an optional tagline
+   colour override for dark hero backgrounds. Everything else lives here. */
+.logo3d {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.logo3d__stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: none;
+}
+.logo3d__wordmark {
+  font-weight: 500;
+  letter-spacing: 1px;
+  margin-top: 4px;
+}
+.logo3d__wordmark .lg-lingua { color: #00a8cc; }
+.logo3d__wordmark .lg-guard  { color: #ff5a3c; }
+.logo3d__tagline {
+  letter-spacing: 4px;
+  margin-top: 6px;
+  color: hsl(var(--muted-foreground));
+}

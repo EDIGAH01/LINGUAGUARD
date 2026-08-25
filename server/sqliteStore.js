@@ -1,19 +1,14 @@
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
-const bcrypt = require("bcryptjs");
 const { DatabaseSync } = require("node:sqlite");
 
-// All SQLite files (database.db and its -wal/-shm siblings) live together in a
-// single data folder at the project root, created on first run. Override the
+// All SQLite files (linguaguard.db and its -wal/-shm siblings) live together in
+// a single data folder at the project root, created on first run. Override the
 // location with LINGUA_DATA_DIR if needed.
 const DATA_DIR = process.env.LINGUA_DATA_DIR || path.join(__dirname, "..", "Lingua_data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const DB_PATH = path.join(DATA_DIR, "database.db");
-const LEGACY_JSON_PATH = path.join(__dirname, "db.json");
-const SEED_CREDENTIALS_PATH = path.join(__dirname, ".seed-admin-credentials.txt");
+const DB_PATH = path.join(DATA_DIR, "linguaguard.db");
 
-const isNewDb = !fs.existsSync(DB_PATH);
 const db = new DatabaseSync(DB_PATH);
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA foreign_keys = ON");
@@ -344,22 +339,6 @@ function save(data) {
   } catch (err) {
     try { db.exec("ROLLBACK"); } catch { /* ignore rollback errors */ }
     throw err;
-  }
-}
-
-// One-time import of the old flat-file store, if this is a fresh SQLite
-// database but a db.json from before the migration still exists — otherwise
-// every account, rule, and activity event built up under the old storage
-// would silently disappear the moment this shipped. Runs down here, after
-// save()'s prepared statements exist, since it calls save() directly.
-if (isNewDb && fs.existsSync(LEGACY_JSON_PATH)) {
-  try {
-    const legacy = JSON.parse(fs.readFileSync(LEGACY_JSON_PATH, "utf-8").replace(/^﻿/, ""));
-    save({ ...defaultData(), ...legacy });
-    console.log(`[db] Migrated ${legacy.users?.length ?? 0} users from db.json into SQLite (database.db).`);
-    fs.renameSync(LEGACY_JSON_PATH, `${LEGACY_JSON_PATH}.migrated`);
-  } catch (err) {
-    console.error("[db] Failed to migrate legacy db.json — starting from an empty database instead:", err.message);
   }
 }
 

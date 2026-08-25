@@ -15,8 +15,9 @@ dist/
 .env
 .env.*
 !.env.example
-# All SQLite database files now live together in one data folder
-Lingua_data/
+# SQLite database files live in one data folder — ignore the data, keep the README
+Lingua_data/*
+!Lingua_data/README.md
 # Legacy locations (kept ignored in case an older checkout still has them)
 server/db.json
 server/db.json.migrated

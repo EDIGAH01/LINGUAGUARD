@@ -19,9 +19,10 @@ const ASPECT = 420 / 340;
 /** Static, dependency-free stand-in shown while the 3D chunk loads. Matches the
  *  3D shield's cyan palette and footprint so the swap-in is seamless. */
 function LogoFallback({ size = 160, showWordmark = false, taglineColor, wordmarkFontSize, className }: Logo3DProps) {
+  const wordmarkSize = wordmarkFontSize ?? Math.round(size * 0.1);
   return (
-    <div className={className} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-      <div style={{ width: Math.round(size * ASPECT), height: size, display: "flex", alignItems: "center", justifyContent: "center" }} aria-hidden="true">
+    <div className={["logo3d", className].filter(Boolean).join(" ")}>
+      <div className="logo3d__stage" style={{ width: Math.round(size * ASPECT), height: size }} aria-hidden="true">
         <svg height={Math.round(size * 0.94)} viewBox="0 0 168 190" fill="none" xmlns="http://www.w3.org/2000/svg">
           <path d="M84 6 154 34 154 96 C154 140 122 172 84 184 C46 172 14 140 14 96 L14 34 Z" fill="#0a63e8" />
           <path d="M84 16 145 40 145 95 C145 133 117 161 84 172 C51 161 23 133 23 95 L23 40 Z" fill="#00c2e0" />
@@ -30,11 +31,11 @@ function LogoFallback({ size = 160, showWordmark = false, taglineColor, wordmark
       </div>
       {showWordmark && (
         <>
-          <div style={{ fontSize: wordmarkFontSize ?? Math.round(size * 0.1), fontWeight: 500, letterSpacing: 1, marginTop: 4 }}>
-            <span style={{ color: "#00A8CC" }}>Lingua</span>
-            <span style={{ color: "#FF5A3C" }}>Guard</span>
+          <div className="logo3d__wordmark" style={{ fontSize: wordmarkSize }}>
+            <span className="lg-lingua">Lingua</span>
+            <span className="lg-guard">Guard</span>
           </div>
-          <div style={{ fontSize: Math.round((wordmarkFontSize ?? Math.round(size * 0.1)) * 0.382), letterSpacing: 4, color: taglineColor || "hsl(var(--muted-foreground))", marginTop: 6 }}>
+          <div className="logo3d__tagline" style={{ fontSize: Math.round(wordmarkSize * 0.382), ...(taglineColor ? { color: taglineColor } : {}) }}>
             LANGUAGE, PROTECTED
           </div>
         </>

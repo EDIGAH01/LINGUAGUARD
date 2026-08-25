@@ -215,20 +215,22 @@ export function Logo3DCanvas({ size = 160, interactive = false, showWordmark = f
     };
   }, [size, interactive]);
 
+  const wordmarkSize = wordmarkFontSize ?? Math.round(size * 0.1);
   return (
-    <div className={className} style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+    <div className={["logo3d", className].filter(Boolean).join(" ")}>
       <div
         ref={stageRef}
-        style={{ width: Math.round(size * ASPECT), height: size, touchAction: "none" }}
+        className="logo3d__stage"
+        style={{ width: Math.round(size * ASPECT), height: size }}
         aria-hidden="true"
       />
       {showWordmark && (
         <>
-          <div style={{ fontSize: wordmarkFontSize ?? Math.round(size * 0.1), fontWeight: 500, letterSpacing: 1, marginTop: 4 }}>
-            <span style={{ color: "#00A8CC" }}>Lingua</span>
-            <span style={{ color: "#FF5A3C" }}>Guard</span>
+          <div className="logo3d__wordmark" style={{ fontSize: wordmarkSize }}>
+            <span className="lg-lingua">Lingua</span>
+            <span className="lg-guard">Guard</span>
           </div>
-          <div style={{ fontSize: Math.round((wordmarkFontSize ?? Math.round(size * 0.1)) * 0.382), letterSpacing: 4, color: taglineColor || "hsl(var(--muted-foreground))", marginTop: 6 }}>
+          <div className="logo3d__tagline" style={{ fontSize: Math.round(wordmarkSize * 0.382), ...(taglineColor ? { color: taglineColor } : {}) }}>
             LANGUAGE, PROTECTED
           </div>
         </>
