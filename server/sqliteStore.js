@@ -4,7 +4,12 @@ const crypto = require("crypto");
 const bcrypt = require("bcryptjs");
 const { DatabaseSync } = require("node:sqlite");
 
-const DB_PATH = path.join(__dirname, "database.db");
+// All SQLite files (database.db and its -wal/-shm siblings) live together in a
+// single data folder at the project root, created on first run. Override the
+// location with LINGUA_DATA_DIR if needed.
+const DATA_DIR = process.env.LINGUA_DATA_DIR || path.join(__dirname, "..", "Lingua_data");
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const DB_PATH = path.join(DATA_DIR, "database.db");
 const LEGACY_JSON_PATH = path.join(__dirname, "db.json");
 const SEED_CREDENTIALS_PATH = path.join(__dirname, ".seed-admin-credentials.txt");
 

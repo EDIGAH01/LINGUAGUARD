@@ -1,0 +1,498 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STYLING.CSS — the single global stylesheet for LinguaGuard
+   ═══════════════════════════════════════════════════════════════════════════
+   Loaded once, at app bootstrap, via `import "./styling.css"` in
+   src/main.tsx. This is the ONLY first-party CSS file in the project —
+   there are no .scss/.sass/.less files and no CSS-in-JS (styled-components/
+   emotion) anywhere in src/.
+
+   WHAT LIVES HERE vs. ELSEWHERE
+   ------------------------------
+   - Design-token VALUES (colors, gradients, shadows, radius, transitions)
+     are defined below as CSS custom properties on :root / .dark.
+   - tailwind.config.js (project root) does NOT contain any literal color
+     values — it only maps Tailwind utility names (e.g. `bg-primary`,
+     `text-danger`) to `hsl(var(--token))`, pointing back at the variables
+     defined in this file. So `bg-primary` in a component's className
+     resolves: tailwind.config.js -> hsl(var(--primary)) -> the HSL triplet
+     set below. If you want to change a color across the whole app, edit it
+     HERE, not in tailwind.config.js.
+   - src/components/ui/*.tsx (shadcn/ui primitives wrapping Radix UI) hold
+     their own variant styling via `class-variance-authority` (cva) — that's
+     component-level Tailwind-class logic, not CSS, so it isn't duplicated
+     here. Those components consume the tokens/utilities defined below.
+   - src/lib/data.ts hardcodes a list of Tailwind gradient class-name pairs
+     (e.g. "from-pink to-purple") used to color-code integration/platform
+     icons on the Connections page. That's TS data, not CSS, so it lives
+     there, but is mentioned here for completeness.
+   - A handful of components hardcode the literal brand hex colors
+     (#00A8CC cyan / #FF5A3C orange) directly in inline `style={{ color }}`
+     props instead of using a token from this file: Logo3D.tsx,
+     Logo3DCanvas.tsx, Login.tsx, Signup.tsx, LegalPage.tsx, Sidebar.tsx,
+     AppLayout.tsx. This is pre-existing inconsistency (not introduced by
+     this file) — flagged here so it's easy to find if you ever want to
+     replace those 7 hardcoded spans with a `--brand-cyan` / `--brand-orange`
+     token instead.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ─── Light-mode design tokens (default theme) ──────────────────────────
+     All values are bare "H S% L%" triplets (no hsl() wrapper) so they can
+     be composed with an alpha channel elsewhere via hsl(var(--x) / 0.5).
+     Dark-mode overrides for the same variable names are in `.dark` below —
+     dark mode is toggled by adding/removing the `.dark` class on <html>,
+     wired up by `<ThemeProvider attribute="class">` (next-themes) in
+     main.tsx, matching `darkMode: "class"` in tailwind.config.js. */
+  :root {
+    /* Page background / default text color.
+       Used via Tailwind `bg-background` / `text-foreground` on <body>
+       below, and as the base canvas color behind every page. */
+    --background: 200 20% 98%;
+    --foreground: 205 25% 12%;
+
+    /* Card/panel surface color — every shadcn <Card>, stat tile, table
+       wrapper, and modal content panel (components/ui/card.tsx,
+       dialog.tsx, popover.tsx, sheet.tsx) uses `bg-card` / `text-card-foreground`. */
+    --card: 0 0% 100%;
+    --card-foreground: 205 25% 12%;
+
+    /* Popover/dropdown/tooltip surface — used by ui/popover.tsx,
+       dropdown-menu.tsx, tooltip.tsx, select.tsx, hover-card.tsx. */
+    --popover: 0 0% 100%;
+    --popover-foreground: 205 25% 12%;
+
+    /* Brand primary color (teal). Drives: primary buttons (ui/button.tsx
+       `variant="default"`), active nav item in Sidebar, focus ring
+       (--ring, see below), links, `.gradient-brand` / `.text-gradient-brand`
+       utilities, and the LinguaGuard wordmark's "Lingua" half where it IS
+       token-driven (most instances instead hardcode the hex directly —
+       see the header note above). */
+    --primary: 188 85% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary surfaces — used for less-prominent buttons/badges
+       (`variant="secondary"`) and subtle section backgrounds. */
+    --secondary: 200 16% 94%;
+    --secondary-foreground: 205 25% 20%;
+
+    /* Muted text/backgrounds — placeholder text, disabled states,
+       secondary metadata (timestamps, helper text) across nearly every
+       page; also the shimmer-loading skeleton base (`.animate-shimmer`
+       below reads --muted directly). */
+    --muted: 200 16% 94%;
+    --muted-foreground: 205 10% 48%;
+
+    /* Accent (warm coral/orange family) — used for highlighted badges and
+       the "Guard" half of the wordmark conceptually, plus hover/selected
+       states on menu items (ui/dropdown-menu.tsx, ui/command.tsx). */
+    --accent: 9 100% 95%;
+    --accent-foreground: 9 75% 42%;
+
+    /* Destructive — delete buttons, destructive confirm dialogs
+       (ui/alert-dialog.tsx), form validation errors. Same hue family as
+       --danger below; kept separate because shadcn's primitives expect a
+       `destructive` token specifically while this app's own moderation UI
+       uses `danger` for blocked-content status. */
+    --destructive: 0 84% 46%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* ── Semantic status tokens ──────────────────────────────────────────
+       success / warning / danger / info, each with a paired "-subtle"
+       (light tinted background) variant. These back the `.status-blocked`,
+       `.status-flagged`, `.status-allowed` utility classes further down,
+       which are used to render moderation-result badges on the Activity,
+       Reports, and Dashboard pages. They're also used directly as
+       Tailwind classes (`bg-success-subtle`, `text-warning`, gradient
+       icon badges like `from-danger to-danger` on Dashboard's stat cards). */
+    --success: 149 65% 30%;
+    --success-foreground: 0 0% 100%;
+    --success-subtle: 149 65% 94%;
+
+    --warning: 44 90% 28%;
+    --warning-foreground: 0 0% 100%;
+    --warning-subtle: 44 96% 94%;
+
+    --danger: 0 84% 46%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 84% 95%;
+
+    --info: 205 100% 38%;
+    --info-foreground: 0 0% 100%;
+    --info-subtle: 205 100% 94%;
+
+    /* Global border/input/focus-ring color. `--border` is applied to
+       EVERY element via the `* { @apply border-border; }` rule below, so
+       changing it re-tints every hairline border in the app at once.
+       `--ring` drives the global `:focus-visible` outline further down
+       and all Radix focus rings (inputs, buttons, checkboxes, switches). */
+    --border: 200 16% 58%;
+    --input: 200 16% 58%;
+    --ring: 188 85% 30%;
+
+    /* Corner radius. NOTE: this is currently DEAD — it isn't wired into
+       tailwind.config.js's `borderRadius` theme, and no component reads
+       `var(--radius)` directly. Reports.tsx hardcodes `borderRadius: "8px"`
+       inline instead in two places. Left here for when that gets wired up
+       (or removed) — grep `var(--radius)` / `theme.extend.borderRadius`
+       before assuming it does anything today. */
+    --radius: 0.625rem;
+
+    /* ── Sidebar-specific palette ─────────────────────────────────────────
+       The left nav (components/layout/Sidebar.tsx) is intentionally a
+       fixed dark surface in BOTH light and dark app themes (a common
+       "always-dark chrome" pattern), which is why it gets its own token
+       set instead of reusing --background/--foreground. */
+    --sidebar-background: 200 32% 8%;
+    --sidebar-foreground: 200 20% 85%;
+    --sidebar-primary: 188 85% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 28% 14%;
+    --sidebar-accent-foreground: 200 20% 90%;
+    --sidebar-border: 200 20% 42%;
+    --sidebar-ring: 188 85% 52%;
+
+    /* ── Gradients ─────────────────────────────────────────────────────── */
+    /* Full CSS gradient strings (not Tailwind tokens — consumed via
+       `var(--gradient-*)` in the `.gradient-brand` / `.text-gradient-brand`
+       utility classes below, used on hero sections, the login/signup
+       marketing panel, and headline text). */
+    --gradient-brand: linear-gradient(135deg, hsl(188 90% 45%), hsl(205 95% 48%));
+    --gradient-surface: linear-gradient(180deg, hsl(200 20% 98%), hsl(200 16% 96%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(188 50% 99%));
+
+    /* ── Shadows ───────────────────────────────────────────────────────── */
+    /* Brand-tinted (teal-tinted, not neutral-gray) box-shadows, consumed by
+       the `.shadow-brand*` / `.shadow-glow` utility classes below and by
+       `.card-lift`'s hover state. Used more sparingly than plain Tailwind
+       `shadow-sm/md/lg` (which most pages use instead — see utilities
+       section for the distinction). */
+    --shadow-sm: 0 1px 3px 0 hsl(188 85% 40% / 0.08);
+    --shadow-md: 0 4px 16px -2px hsl(188 85% 40% / 0.14);
+    --shadow-lg: 0 10px 40px -4px hsl(188 85% 40% / 0.2);
+    --shadow-glow: 0 0 30px hsl(188 85% 45% / 0.3);
+
+    /* Shared easing/duration for one-off transitions (not currently
+       referenced by any utility class below — available for ad-hoc
+       `transition: var(--transition-smooth)` in component-level CSS or
+       inline styles if needed). */
+    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* ─── Dark-mode overrides ────────────────────────────────────────────────
+     Same variable names as :root, reassigned. Gradients and shadows are
+     NOT overridden here (they stay identical in both themes) — only flat
+     colors change. Toggled by the `.dark` class landing on <html>. */
+  .dark {
+    --background: 205 22% 7%;
+    --foreground: 200 20% 92%;
+
+    --card: 205 20% 10%;
+    --card-foreground: 200 20% 92%;
+
+    --popover: 205 20% 10%;
+    --popover-foreground: 200 20% 92%;
+
+    --primary: 188 90% 52%;
+    --primary-foreground: 205 40% 8%;
+
+    --secondary: 205 18% 17%;
+    --secondary-foreground: 200 20% 85%;
+
+    --muted: 205 18% 17%;
+    --muted-foreground: 205 10% 58%;
+
+    --accent: 9 45% 20%;
+    --accent-foreground: 9 90% 72%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 149 55% 48%;
+    --success-foreground: 149 45% 8%;
+    --success-subtle: 149 30% 15%;
+
+    --warning: 44 90% 58%;
+    --warning-foreground: 44 45% 10%;
+    --warning-subtle: 44 30% 15%;
+
+    --danger: 0 72% 55%;
+    --danger-foreground: 0 0% 100%;
+    --danger-subtle: 0 30% 15%;
+
+    --info: 205 90% 62%;
+    --info-foreground: 205 45% 8%;
+    --info-subtle: 205 30% 15%;
+
+    --border: 205 18% 38%;
+    --input: 205 18% 38%;
+    --ring: 188 90% 52%;
+
+    /* Sidebar is already dark in light mode, so its dark-mode values are
+       only a slight further adjustment, not a full inversion. */
+    --sidebar-background: 205 26% 5%;
+    --sidebar-foreground: 200 20% 80%;
+    --sidebar-primary: 188 90% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 25% 13%;
+    --sidebar-accent-foreground: 200 20% 90%;
+    --sidebar-border: 205 20% 40%;
+    --sidebar-ring: 188 90% 55%;
+  }
+}
+
+@layer base {
+  /* Every element gets the token border color by default, so a bare
+     `border` className (no color specified) always resolves to
+     hsl(var(--border)) instead of an undefined/browser-default color. */
+  * {
+    @apply border-border;
+  }
+
+  html {
+    /* "Inter" is loaded from Google Fonts via <link> tags in index.html
+       (weights 300–800) — this is the ONLY font-loading mechanism in the
+       app; there are no local @font-face declarations. system-ui and the
+       platform-native stack are the fallback chain if the Google Fonts
+       request fails or is blocked. */
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    /* Base page canvas + text color for the whole app. */
+    @apply bg-background text-foreground;
+    /* Enable Inter's stylistic OpenType features: rlig (required
+       ligatures), calt (contextual alternates), cv11 (Inter's
+       single-story "a" variant). */
+    font-feature-settings: "rlig" 1, "calt" 1, "cv11" 1;
+  }
+}
+
+/* Forces the app shell to fill the full viewport — without this, a page
+   shorter than the viewport can leave visible background "gaps" below
+   the content in some layouts (relevant since AppLayout.tsx uses flex
+   layouts that assume a 100%-height ancestor chain). */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+}
+
+@layer utilities {
+  /* Solid brand-gradient background fill. Used on hero/marketing sections
+     (Login.tsx / Signup.tsx side panel) and CTA buttons. */
+  .gradient-brand {
+    background: var(--gradient-brand);
+  }
+
+  /* Named, brand-tinted shadow utilities (see --shadow-* tokens above).
+     Used more sparingly than plain Tailwind shadow-sm/md/lg — mainly on
+     Dashboard.tsx hero/stat cards where a teal-tinted glow reads more
+     "branded" than a neutral gray shadow. Most other pages (Admin,
+     Reports, FilterRules, Settings) just use plain Tailwind shadows. */
+  .shadow-brand {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-brand-sm {
+    box-shadow: var(--shadow-sm);
+  }
+  .shadow-brand-md {
+    box-shadow: var(--shadow-md);
+  }
+  .shadow-brand-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Stronger ambient glow, used behind hero graphics / the 3D logo on
+     marketing pages and the Dashboard header. */
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Frosted-glass panel effect (translucent card + blur). Used on
+     overlay panels / the top nav bar where content needs to remain
+     partially visible behind it. */
+  .glass {
+    background: hsl(var(--card) / 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Moderation-result status badges — maps a content moderation outcome
+     to its semantic color + a 20%-opacity border. Used on Activity.tsx,
+     Reports.tsx, and Dashboard.tsx wherever a message/event's
+     blocked/flagged/allowed status is rendered as a pill/badge. */
+  .status-blocked {
+    @apply bg-danger-subtle text-danger border-danger/20;
+  }
+  .status-flagged {
+    @apply bg-warning-subtle text-warning border-warning/20;
+  }
+  .status-allowed {
+    @apply bg-success-subtle text-success border-success/20;
+  }
+
+  /* THE standard wrapper for every authenticated page's content
+     (Dashboard, Activity, Reports, Settings, FilterRules, Connections,
+     Admin all open their top-level JSX with this class). Gives every
+     page the same padding, vertical rhythm between sections, a capped
+     reading width, horizontal centering, and an entrance fade. Change
+     this one class to adjust the page "gutter" app-wide. */
+  .page-container {
+    @apply p-6 space-y-6 animate-fade-in-up max-w-7xl mx-auto;
+  }
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────
+   Custom thin (5px) WebKit scrollbar so long tables/lists (Activity log,
+   Reports history, Admin user list) don't get a chunky default OS
+   scrollbar. Firefox falls back to its native scrollbar (no `scrollbar-*`
+   properties are set), so this is a progressive enhancement only. */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border) / 0.6);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
+}
+
+/* ─── Focus ring — global, consistent ─────────────────────────────────────
+   Applies to every focusable element app-wide (native inputs, buttons,
+   and anything Radix marks focus-visible), keeping keyboard-navigation
+   focus indication consistent instead of relying on inconsistent
+   per-browser default outlines. */
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+/* ─── Selection ────────────────────────────────────────────────────────────
+   Tints browser text-selection highlight with the brand primary color
+   instead of the OS default blue, everywhere in the app. */
+::selection {
+  background: hsl(var(--primary) / 0.18);
+  color: hsl(var(--foreground));
+}
+
+/* ─── Animations ─────────────────────────────────────────────────────────
+   Hand-written keyframes — NOT registered in tailwind.config.js's
+   `theme.extend.animation`/`keyframes`, so they can't be reached via
+   arbitrary Tailwind animation utilities; each has its own paired
+   `.animate-*` class defined right after it instead. */
+
+/* Expanding ring pulse — used behind status/notification dots to draw
+   attention (e.g. an "active"/"live" indicator). */
+@keyframes pulse-ring {
+  0%   { transform: scale(0.95); box-shadow: 0 0 0 0   hsl(var(--primary) / 0.4); }
+  70%  { transform: scale(1);    box-shadow: 0 0 0 10px hsl(var(--primary) / 0);   }
+  100% { transform: scale(0.95); box-shadow: 0 0 0 0   hsl(var(--primary) / 0);   }
+}
+
+/* Fade in while sliding up slightly — the app's default "content has
+   arrived" entrance. Used by `.page-container` (every page load) and
+   `.stagger-children` (list/grid item entrances). */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Plain opacity fade — used for lighter-weight entrances (e.g. toasts,
+   modal backdrops) where a vertical shift isn't wanted. */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Subtle scale-up entrance — used for modal/dialog/popover content
+   (feels like the element is "growing into place"). */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Continuous slow rotation — used on loading/processing icon spinners
+   where the default fast `animate-spin` (Tailwind built-in) is too busy. */
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Horizontal light sweep — powers the skeleton-loading shimmer effect,
+   paired with `.animate-shimmer` below. */
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+.animate-fade-in-up   { animation: fade-in-up  0.32s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-fade-in      { animation: fade-in     0.25s ease-out both; }
+.animate-scale-in     { animation: scale-in    0.2s  cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-pulse-ring   { animation: pulse-ring  2s    infinite; }
+.animate-spin-slow    { animation: spin-slow   3s    linear infinite; }
+
+/* Skeleton / loading shimmer — a moving gradient sweep across a muted
+   block, used by loading-placeholder UI while data fetches. */
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--muted-foreground) / 0.08) 50%,
+    hsl(var(--muted)) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+/* ─── Page transitions ─────────────────────────────────────────────────────
+   Staggered children — wrap a list/grid in `.stagger-children` and each
+   direct child gets a progressively later `fade-in-up`, giving the page a
+   "cascade" entry without any JS. Delays cap out at 240ms so long lists
+   don't take forever to finish animating in. */
+.stagger-children > * {
+  animation: fade-in-up 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger-children > *:nth-child(1)  { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2)  { animation-delay: 50ms; }
+.stagger-children > *:nth-child(3)  { animation-delay: 100ms; }
+.stagger-children > *:nth-child(4)  { animation-delay: 150ms; }
+.stagger-children > *:nth-child(5)  { animation-delay: 200ms; }
+.stagger-children > *:nth-child(n+6){ animation-delay: 240ms; }
+
+/* ─── Card hover lift — attach to any interactive/clickable card ──────────
+   Nudges the card up 2px and swaps in the branded medium shadow on hover,
+   signaling "this is clickable" (used on dashboard stat cards, connection
+   tiles, and other card-as-button UI). */
+.card-lift {
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+/* ─── Brand gradient text ───────────────────────────────────────────────────
+   Clips the brand gradient to text glyphs instead of a solid fill — used
+   for large marketing headlines (Login/Signup hero copy). The
+   `-webkit-*` variants are required for Safari/Chrome support of
+   background-clip: text on text elements. */
+.text-gradient-brand {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

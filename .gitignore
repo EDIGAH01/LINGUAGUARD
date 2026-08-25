@@ -15,6 +15,9 @@ dist/
 .env
 .env.*
 !.env.example
+# All SQLite database files now live together in one data folder
+Lingua_data/
+# Legacy locations (kept ignored in case an older checkout still has them)
 server/db.json
 server/db.json.migrated
 server/db.json.pre-sqlite-backup
@@ -27,3 +30,6 @@ server/.seed-admin-credentials.txt
 
 # One-shot local maintenance script � not part of the app
 server/scripts/update-admin-email.js
+
+# Local MCP server registration (may carry an API key in headers) — keep out of git
+.mcp.json

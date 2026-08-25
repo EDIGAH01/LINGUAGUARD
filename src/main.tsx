@@ -2,7 +2,7 @@ import { createRoot } from "react-dom/client";
 import "./i18n/config";
 import { bootstrapGeneratedSiteAnalytics } from "./analytics";
 import App from "./App";
-import "./index.css";
+import "./styling.css";
 import { ThemeProvider } from "next-themes";
 
 const container = document.getElementById("root");
