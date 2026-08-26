@@ -52,6 +52,18 @@ const ITEMS_PER_PAGE = 8;
 
 const severityRank = { high: 0, medium: 1, low: 2 } as const;
 
+/**
+ * Activity Log page (route: /activity).
+ *
+ * The full, searchable feed of moderation events (useActivity →
+ * /api/content/activity). Read-only — every row is a real recorded scan:
+ *   • filter by verdict (all / blocked / flagged / allowed) with live counts
+ *   • free-text search across content, platform and matched rule
+ *   • sort by newest / oldest / severity, with client-side pagination (8/page)
+ *   • expand a row for the full content + metadata
+ *   • export the current filtered set to CSV
+ * How far back events are kept (retention) is plan-dependent (usePlan).
+ */
 export default function Activity() {
   const { limits } = usePlan();
   const { events: allEvents } = useActivity();
@@ -61,6 +73,8 @@ export default function Activity() {
   const [page, setPage] = useState(1);
   const [expanded, setExpanded] = useState<string | null>(null);
 
+  // Status filter + free-text search, then sort — all client-side over the
+  // already-loaded events (the list is small enough not to need server paging).
   const filtered = allEvents
     .filter((e) => {
       const matchStatus = statusFilter === "all" || e.status === statusFilter;
@@ -92,6 +106,8 @@ export default function Activity() {
     allowed: allEvents.filter((e) => e.status === "allowed").length,
   };
 
+  // Build a CSV from the current filtered rows and trigger a client-side
+  // download (no server round-trip); double-quotes in content are escaped.
   const exportCsv = () => {
     const rows = [
       ["Timestamp", "Status", "Platform", "Sender", "Rule Matched", "Category", "Severity", "Content"],

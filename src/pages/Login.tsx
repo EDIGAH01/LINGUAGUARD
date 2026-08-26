@@ -8,6 +8,14 @@ import { cn } from "@/lib/utils";
 
 type Step = "login" | "twofa" | "forgot" | "reset";
 
+/**
+ * Login page (route: /login — public).
+ *
+ * Email + password sign-in (useAuth().login). If the account has two-factor
+ * enabled, the server replies asking for a TOTP code and a second step is shown
+ * (confirmLoginTwoFactor). On success the user is sent into the app; an
+ * already-authenticated user is redirected away from here.
+ */
 export default function Login() {
   const { login, confirmLoginTwoFactor, user } = useAuth();
   const navigate = useNavigate();

@@ -5,6 +5,13 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Home, LayoutDashboard } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
+/**
+ * Not Found page (route: * — the catch-all for unmatched paths).
+ *
+ * A friendly 404 that echoes the attempted path and offers a way back: "go
+ * back", plus Dashboard (when signed in) or Sign in (when not), and quick links
+ * to the main pages for authenticated users. Logs the bad path to the console.
+ */
 const NotFound = () => {
   const location = useLocation();
   const navigate = useNavigate();

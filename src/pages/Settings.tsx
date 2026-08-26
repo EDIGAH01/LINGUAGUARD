@@ -62,6 +62,19 @@ const planFeatures = {
 
 type SecurityDialogType = "password" | "2fa" | "sessions" | "apikeys" | null;
 
+/**
+ * Settings page (route: /settings).
+ *
+ * The user's account + preferences hub, organised into sections:
+ *   • Profile — name / email / phone (PATCH /api/auth/me)
+ *   • Notifications — email/SMS/digest toggles stored server-side so the scan
+ *     engine honours them; each channel has a "send test" button
+ *   • Security — change password, two-factor (TOTP) enrol/disable, and the
+ *     list of active sessions (with per-device sign-out)
+ *   • API keys — create / copy / revoke keys for programmatic access
+ *   • Billing — current plan and upgrade via M-Pesa, which re-applies plan limits
+ * Most actions hit the server and update the shared auth user on success.
+ */
 export default function Settings() {
   const { user, setUser, refreshUser } = useAuth();
   // Server-backed, not localStorage: the scan engine (which sends the real

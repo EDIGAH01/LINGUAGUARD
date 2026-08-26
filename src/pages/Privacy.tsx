@@ -1,6 +1,12 @@
 import { Link } from "react-router-dom";
 import { LegalPage, LegalSection, LegalList } from "@/components/layout/LegalPage";
 
+/**
+ * Privacy Policy page (route: /privacy — intentionally PUBLIC).
+ *
+ * Static legal content via the shared LegalPage layout. Public for the same
+ * reason as Terms: platform app-review tools fetch it while signed out.
+ */
 export default function Privacy() {
   return (
     <LegalPage

@@ -77,7 +77,22 @@ const severityColors: Record<FilterSeverity, string> = {
   high: "bg-danger/10 text-danger border-danger/20",
 };
 
+/**
+ * Filter Rules page (route: /rules).
+ *
+ * Where the user defines what content gets blocked or flagged. Rules live
+ * server-side (useServerRules → /api/rules) and are evaluated for real by the
+ * scan engine, so this is genuine CRUD over shared state — not a local mock:
+ *   • create / edit / delete a rule (name, category, severity, keyword list)
+ *   • toggle a rule on/off without deleting it
+ *   • a live "Test Your Rules" scanner that runs pasted text through the same
+ *     /api/content/scan engine and records a real activity event
+ *
+ * Plan-gated: the rule count is capped per plan (usePlan → maxRules); at the
+ * limit, "Add Rule" locks and an upgrade notice appears.
+ */
 export default function FilterRules() {
+  // Server-backed rules + their CRUD helpers (each call hits /api/rules).
   const { rules, createRule, updateRule, deleteRule, refresh } = useServerRules();
   const [platforms] = usePlatforms();
   const [dialogOpen, setDialogOpen] = useState(false);

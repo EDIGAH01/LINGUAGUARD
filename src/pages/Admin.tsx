@@ -34,6 +34,19 @@ interface Stats {
   banned: number;
 }
 
+/**
+ * Admin page (route: /admin — admin-only, guarded by ProtectedRoute requireAdmin).
+ *
+ * User management for administrators, backed by /api/admin/*:
+ *   • list every user with search + status filter, plus account-wide stats
+ *     (totals by plan, by role, active/banned)
+ *   • change a user's plan, or ban / unban them
+ *   • promote a user to admin — a ONE-WAY grant (the server refuses to revoke
+ *     admin), so there are deliberately no "demote" controls
+ *   • delete a user (confirm dialog; the server cascades their data)
+ *   • send a test email / SMS to verify the notification channels deliver
+ * Every mutation hits the server, then the list reloads to reflect the change.
+ */
 export default function Admin() {
   const { user: me } = useAuth();
   const [users, setUsers] = useState<AuthUser[]>([]);

@@ -1,6 +1,13 @@
 import { Link } from "react-router-dom";
 import { LegalPage, LegalSection, LegalList } from "@/components/layout/LegalPage";
 
+/**
+ * Terms of Service page (route: /terms — intentionally PUBLIC).
+ *
+ * Static legal content rendered through the shared LegalPage layout. Kept
+ * un-gated because platform reviewers (Meta, Google, X, TikTok) open it while
+ * signed out during app review — wrapping it in ProtectedRoute would fail that.
+ */
 export default function Terms() {
   return (
     <LegalPage

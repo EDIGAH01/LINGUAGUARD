@@ -27,6 +27,19 @@ const statusConfig: Record<ActivityStatus, { label: string; icon: React.ElementT
   allowed: { label: "Allowed", icon: CheckCircle2, classes: "status-allowed border" },
 };
 
+/**
+ * Dashboard page (route: /).
+ *
+ * The landing screen after login — a real-time protection overview. Every
+ * number here is live, not mocked:
+ *   • stat cards (total filtered / blocked / flagged / platforms active) from
+ *     useContentStats → /api/content/stats
+ *   • a Protection Score derived from how much of the rule set is enabled and
+ *     how many platforms are connected (the same two ratios shown as bars)
+ *   • connected-platform tiles showing today's per-platform filter counts
+ *   • a Recent Activity feed (useActivity → /api/content/activity)
+ * The refresh button re-pulls activity + stats together.
+ */
 export default function Dashboard() {
   const [platforms] = usePlatforms();
   const { rules } = useServerRules();

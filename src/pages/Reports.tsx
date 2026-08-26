@@ -31,6 +31,17 @@ const CATEGORY_COLORS: Record<FilterCategory, string> = {
   custom: "hsl(142 76% 36%)",
 };
 
+/**
+ * Reports page (route: /reports).
+ *
+ * Visual analytics over the moderation stats (useContentStats →
+ * /api/content/stats), rendered with Recharts:
+ *   • a 7-day blocked/flagged/allowed trend (bar chart, from dailyStats)
+ *   • a category breakdown of flagged/blocked content (pie chart, byCategory)
+ *   • per-platform filtering for today (byPlatform)
+ * Same server-side figures the Dashboard uses. Advanced reporting is plan-gated
+ * (usePlan → advancedReports); lower plans see a locked/upgrade state.
+ */
 export default function Reports() {
   const { limits } = usePlan();
   const [platforms] = usePlatforms();

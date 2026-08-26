@@ -651,6 +651,24 @@ function ConnectDialog({ platform, onClose, onConnect }: ConnectDialogProps) {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
+/**
+ * Connections page (route: /connections).
+ *
+ * Where the user links the accounts LinguaGuard should monitor, grouped by
+ * category (Social Media, Messaging, AI Agents). Each tile shows connection
+ * status and its linked accounts, and opens the ConnectDialog above to add one.
+ *
+ * Connection method varies by platform and is reflected in ConnectDialog:
+ *   • real OAuth 2.0 + PKCE for the wired providers (X, Instagram, Facebook,
+ *     YouTube, TikTok) via /api/oauth/*
+ *   • a real bot-backed flow for Telegram
+ *   • SMS-code verification for phone platforms (e.g. WhatsApp)
+ *   • an API-key form for AI agents
+ * Platform tiles/accounts here are the client-side demo store (usePlatforms);
+ * the OAuth/Telegram flows overlay real connections on top. Plan-gated: the
+ * number of connected platforms is capped (usePlan → maxPlatforms), and AI
+ * agents require a plan with aiAgents enabled.
+ */
 export default function Connections() {
   const [platforms, updatePlatforms] = usePlatforms();
   const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);

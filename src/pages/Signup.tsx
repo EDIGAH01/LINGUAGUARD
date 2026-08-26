@@ -6,6 +6,13 @@ import { FloatingLabelInput } from "@/components/ui/floating-label-input";
 import { useAuth } from "@/lib/auth";
 import { User, Mail, Lock } from "lucide-react";
 
+/**
+ * Sign Up page (route: /signup — public).
+ *
+ * New-account registration (useAuth().signup) with name / email / password.
+ * New users start on the Free plan. On success they're logged straight in and
+ * sent into the app; an already-authenticated user is redirected away.
+ */
 export default function Signup() {
   const { signup, user } = useAuth();
   const navigate = useNavigate();
