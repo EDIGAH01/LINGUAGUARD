@@ -6,7 +6,7 @@ import { planLimits, type PlanTier } from "./plan";
 // so browsers holding an older seed in localStorage pick up the new demo data
 // instead of showing stale connections. (Connections are a client-side demo;
 // real OAuth/Telegram links re-sync from the backend on reconnect.)
-const PLATFORMS_KEY = "linguaguard-platforms-v3";
+const PLATFORMS_KEY = "linguaguard-platforms-v4";
 
 type StoreKey = typeof PLATFORMS_KEY;
 
