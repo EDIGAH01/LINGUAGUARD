@@ -8,7 +8,7 @@ import { ProtectedRoute } from "./components/ProtectedRoute";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Connections = lazy(() => import("./pages/Connections"));
 const FilterRules = lazy(() => import("./pages/FilterRules"));
-const Activity = lazy(() => import("./pages/Activity"));
+const ActivityLog = lazy(() => import("./pages/ActivityLog"));
 const Reports = lazy(() => import("./pages/Reports"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
@@ -79,7 +79,7 @@ export const routers = [
     path: "/activity",
     name: "activity",
     element: (
-      <ProtectedRoute>{withSuspense(<Activity />)}</ProtectedRoute>
+      <ProtectedRoute>{withSuspense(<ActivityLog />)}</ProtectedRoute>
     ),
   },
   {
